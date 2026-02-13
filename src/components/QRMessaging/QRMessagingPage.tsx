@@ -51,7 +51,7 @@ export function QRMessagingPage() {
             MOSS60 QR Messaging
           </h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Quantum-resistant QR codes and encrypted messaging
+            Integrity-oriented QR encoding and encrypted messaging
           </p>
         </div>
 
