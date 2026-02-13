@@ -738,6 +738,15 @@ function isValidMiniGameProgress(value: unknown): value is MiniGameProgress {
     progress.vimanaLastScore,
     progress.vimanaLastLines,
     progress.vimanaLastLevel,
+    progress.spaceJewblesHighScore,
+    progress.spaceJewblesMaxWave,
+    progress.spaceJewblesLastScore,
+    progress.spaceJewblesLastWave,
+    progress.spaceJewblesMythicDrops,
+    progress.spaceJewblesBossesDefeated,
+    progress.spaceJewblesRunsPlayed,
+    progress.spaceJewblesTotalScore,
+    progress.spaceJewblesTotalWaves,
   ];
   const statsValid = numericFields.every(
     field => typeof field === 'number' && Number.isFinite(field)

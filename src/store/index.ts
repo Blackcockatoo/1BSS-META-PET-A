@@ -586,6 +586,16 @@ export function createMetaPetWebStore(
           achievements = result.achievements;
           if (result.reward) rewardPayloads.push(result.reward);
         }
+        if (game === 'memory' && next.memoryHighScore >= 20) {
+          const result = unlockAchievementWithReward(achievements, 'minigame-memory-ace');
+          achievements = result.achievements;
+          if (result.reward) rewardPayloads.push(result.reward);
+        }
+        if (game === 'rhythm' && next.rhythmHighScore >= 20) {
+          const result = unlockAchievementWithReward(achievements, 'minigame-rhythm-ace');
+          achievements = result.achievements;
+          if (result.reward) rewardPayloads.push(result.reward);
+        }
 
         const update: Partial<MetaPetState> = { miniGames: next };
         if (achievements !== state.achievements) {
@@ -632,6 +642,16 @@ export function createMetaPetWebStore(
           achievements = result.achievements;
           if (result.reward) rewardPayloads.push(result.reward);
         }
+        if (next.vimanaMaxLevel >= 5) {
+          const result = unlockAchievementWithReward(achievements, 'minigame-vimana-level');
+          achievements = result.achievements;
+          if (result.reward) rewardPayloads.push(result.reward);
+        }
+        if (next.focusStreak >= 5) {
+          const result = unlockAchievementWithReward(achievements, 'minigame-focus-streak');
+          achievements = result.achievements;
+          if (result.reward) rewardPayloads.push(result.reward);
+        }
 
         const update: Partial<MetaPetState> = { miniGames: next };
         if (achievements !== state.achievements) {
@@ -652,52 +672,32 @@ export function createMetaPetWebStore(
 
     recordSpaceJewblesRun(score, wave, bossesDefeated, mythicDrops) {
       if (get().systemState === 'sealed') return;
+      const safeScore = Math.max(0, Math.floor(score));
+      const safeWave = Math.max(0, Math.floor(wave));
+      const safeBossesDefeated = Math.max(0, Math.floor(bossesDefeated));
+      const safeMythicDrops = Math.max(0, Math.floor(mythicDrops));
       const rewardPayloads: RewardPayloadInput[] = [];
       set(state => {
         const previous = state.miniGames;
-        const hasProgress = score > 0 || wave > 0;
+        const hasProgress = safeScore > 0 || safeWave > 0;
 
         const next: MiniGameProgress = {
           ...previous,
           focusStreak: hasProgress ? previous.focusStreak + 1 : 0,
-          spaceJewblesHighScore: Math.max(previous.spaceJewblesHighScore, score),
-          spaceJewblesMaxWave: Math.max(previous.spaceJewblesMaxWave, wave),
-          spaceJewblesLastScore: score,
-          spaceJewblesLastWave: wave,
-          spaceJewblesMythicDrops: previous.spaceJewblesMythicDrops + mythicDrops,
-          spaceJewblesBossesDefeated: previous.spaceJewblesBossesDefeated + bossesDefeated,
+          spaceJewblesHighScore: Math.max(previous.spaceJewblesHighScore, safeScore),
+          spaceJewblesMaxWave: Math.max(previous.spaceJewblesMaxWave, safeWave),
+          spaceJewblesLastScore: safeScore,
+          spaceJewblesLastWave: safeWave,
+          spaceJewblesMythicDrops: previous.spaceJewblesMythicDrops + safeMythicDrops,
+          spaceJewblesBossesDefeated: previous.spaceJewblesBossesDefeated + safeBossesDefeated,
+          spaceJewblesRunsPlayed: previous.spaceJewblesRunsPlayed + 1,
+          spaceJewblesTotalScore: previous.spaceJewblesTotalScore + safeScore,
+          spaceJewblesTotalWaves: previous.spaceJewblesTotalWaves + safeWave,
           lastPlayedAt: Date.now(),
         };
 
         let achievements = state.achievements;
 
-        // Score achievement (5000+)
-        if (next.spaceJewblesHighScore >= 5000) {
-          const result = unlockAchievementWithReward(achievements, 'minigame-jewbles-score');
-          achievements = result.achievements;
-          if (result.reward) rewardPayloads.push(result.reward);
-        }
-
-        // Wave achievement (wave 10+)
-        if (next.spaceJewblesMaxWave >= 10) {
-          const result = unlockAchievementWithReward(achievements, 'minigame-jewbles-wave');
-          achievements = result.achievements;
-          if (result.reward) rewardPayloads.push(result.reward);
-        }
-
-        // Boss achievement (3+ bosses defeated total)
-        if (next.spaceJewblesBossesDefeated >= 3) {
-          const result = unlockAchievementWithReward(achievements, 'minigame-jewbles-boss');
-          achievements = result.achievements;
-          if (result.reward) rewardPayloads.push(result.reward);
-        }
-
-        // Mythic drop achievement (any mythic)
-        if (next.spaceJewblesMythicDrops >= 1) {
-          const result = unlockAchievementWithReward(achievements, 'minigame-jewbles-mythic');
-          achievements = result.achievements;
-          if (result.reward) rewardPayloads.push(result.reward);
-        }
 
         const update: Partial<MetaPetState> = { miniGames: next };
         if (achievements !== state.achievements) {
@@ -706,13 +706,13 @@ export function createMetaPetWebStore(
 
         // Grant XP based on performance (5-15 XP, scaled by wave and score)
         if (hasProgress) {
-          const xpGain = Math.min(15, Math.max(5, Math.floor(wave / 2) + Math.floor(score / 1000)));
+          const xpGain = Math.min(15, Math.max(5, Math.floor(safeWave / 2) + Math.floor(safeScore / 1000)));
           update.evolution = gainExperience(state.evolution, xpGain);
         }
 
         // Boost vitals from playing
-        const moodBoost = Math.min(8, Math.floor(wave));
-        const energyCost = Math.min(5, Math.floor(wave / 3));
+        const moodBoost = Math.min(8, Math.floor(safeWave));
+        const energyCost = Math.min(5, Math.floor(safeWave / 3));
         update.vitals = {
           ...state.vitals,
           mood: clamp(state.vitals.mood + moodBoost),
@@ -723,14 +723,14 @@ export function createMetaPetWebStore(
       });
 
       // Record game result as reward
-      if (score > 0) {
+      if (safeScore > 0) {
         rewardPayloads.push({
           source: 'minigame',
           title: 'Space Jewbles Run',
-          description: `Reached wave ${wave} with ${score} points.`,
+          description: `Reached wave ${safeWave} with ${safeScore} points.`,
           reward: {
             type: 'score',
-            value: score,
+            value: safeScore,
           },
         });
       }
