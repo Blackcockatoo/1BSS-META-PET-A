@@ -473,7 +473,11 @@ Full spec: `docs/master-build-prompt.pdf` (attached by user)
 
 ## License
 
-TBD (likely MIT for core, CC for assets)
+This project is licensed under the MIT License. See [LICENSE](/LICENSE).
+
+### Asset licensing
+
+No separate asset license overrides are currently defined in this repository. Unless explicitly noted otherwise, assets checked into this repo are covered by the MIT License in [`/LICENSE`](/LICENSE).
 
 ---
 
