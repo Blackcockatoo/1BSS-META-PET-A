@@ -371,6 +371,48 @@ describe('Store State Management', () => {
       const hasRhythm = achievements.some(a => a.id === 'minigame-rhythm');
       expect(hasRhythm).toBe(true);
     });
+
+    it('should unlock additional achievable mini-game milestones', () => {
+      useStore.getState().updateMiniGameScore('memory', 20);
+      useStore.getState().updateMiniGameScore('rhythm', 20);
+      useStore.getState().recordVimanaRun(1200, 10, 5);
+      useStore.getState().recordVimanaRun(1300, 11, 5);
+      useStore.getState().recordVimanaRun(1400, 12, 5);
+      useStore.getState().recordVimanaRun(1500, 13, 5);
+      useStore.getState().recordVimanaRun(1600, 14, 5);
+
+      const achievements = useStore.getState().achievements;
+      expect(achievements.some(a => a.id === 'minigame-memory-ace')).toBe(true);
+      expect(achievements.some(a => a.id === 'minigame-rhythm-ace')).toBe(true);
+      expect(achievements.some(a => a.id === 'minigame-vimana-level')).toBe(true);
+      expect(achievements.some(a => a.id === 'minigame-focus-streak')).toBe(true);
+    });
+
+    it('should accumulate Space Jewbles metrics across runs', () => {
+      useStore.getState().recordSpaceJewblesRun(1200, 4, 1, 0);
+      useStore.getState().recordSpaceJewblesRun(2200, 7, 2, 1);
+
+      const miniGames = useStore.getState().miniGames;
+      expect(miniGames.spaceJewblesRunsPlayed).toBe(2);
+      expect(miniGames.spaceJewblesTotalScore).toBe(3400);
+      expect(miniGames.spaceJewblesTotalWaves).toBe(11);
+      expect(miniGames.spaceJewblesHighScore).toBe(2200);
+      expect(miniGames.spaceJewblesMaxWave).toBe(7);
+      expect(miniGames.spaceJewblesBossesDefeated).toBe(3);
+      expect(miniGames.spaceJewblesMythicDrops).toBe(1);
+    });
+
+    it('should sanitize negative Space Jewbles values before updating metrics', () => {
+      useStore.getState().recordSpaceJewblesRun(-100, -5, -2, -1);
+
+      const miniGames = useStore.getState().miniGames;
+      expect(miniGames.spaceJewblesLastScore).toBe(0);
+      expect(miniGames.spaceJewblesLastWave).toBe(0);
+      expect(miniGames.spaceJewblesBossesDefeated).toBe(0);
+      expect(miniGames.spaceJewblesMythicDrops).toBe(0);
+      expect(miniGames.spaceJewblesTotalScore).toBe(0);
+      expect(miniGames.spaceJewblesTotalWaves).toBe(0);
+    });
   });
 
   describe('Hydration', () => {

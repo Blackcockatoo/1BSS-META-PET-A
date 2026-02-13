@@ -53,6 +53,9 @@ export interface MiniGameProgress {
   spaceJewblesLastWave: number;
   spaceJewblesMythicDrops: number;
   spaceJewblesBossesDefeated: number;
+  spaceJewblesRunsPlayed: number;
+  spaceJewblesTotalScore: number;
+  spaceJewblesTotalWaves: number;
   lastPlayedAt: number | null;
 }
 
@@ -119,29 +122,29 @@ export const ACHIEVEMENT_CATALOG: Achievement[] = [
     description: 'Breed two pets to create a new companion.',
     category: 'breeding',
   },
-  // Space Jewbles achievements
+  // Additional achievable mini-game milestones
   {
-    id: 'minigame-jewbles-score',
-    title: 'Cosmic Defender',
-    description: 'Score 5,000 or more in Space Jewbles.',
+    id: 'minigame-memory-ace',
+    title: 'Memory Ace',
+    description: 'Score 20 or more in the memory mini-game.',
     category: 'minigame',
   },
   {
-    id: 'minigame-jewbles-wave',
-    title: 'Wave Rider',
-    description: 'Reach wave 10 in Space Jewbles.',
+    id: 'minigame-rhythm-ace',
+    title: 'Rhythm Ace',
+    description: 'Hit a rhythm score of 20 or higher.',
     category: 'minigame',
   },
   {
-    id: 'minigame-jewbles-boss',
-    title: 'Banana Slayer',
-    description: 'Defeat 3 Boss Bananas in Space Jewbles.',
+    id: 'minigame-vimana-level',
+    title: 'Sky Climber',
+    description: 'Reach level 5 in Vimana Tetris.',
     category: 'minigame',
   },
   {
-    id: 'minigame-jewbles-mythic',
-    title: 'Mythic Hunter',
-    description: 'Collect a Mythic drop in Space Jewbles.',
+    id: 'minigame-focus-streak',
+    title: 'Focused Explorer',
+    description: 'Build a focus streak of 5 mini-game runs.',
     category: 'minigame',
   },
 ];
@@ -181,6 +184,9 @@ export function createDefaultMiniGameProgress(overrides: Partial<MiniGameProgres
     spaceJewblesLastWave: 0,
     spaceJewblesMythicDrops: 0,
     spaceJewblesBossesDefeated: 0,
+    spaceJewblesRunsPlayed: 0,
+    spaceJewblesTotalScore: 0,
+    spaceJewblesTotalWaves: 0,
     lastPlayedAt: null,
     ...overrides,
   };
