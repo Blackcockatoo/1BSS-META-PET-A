@@ -316,8 +316,17 @@ export function QRGenerator({ compact = false, onGenerate }: QRGeneratorProps) {
       <div className="rounded-lg border border-slate-700 bg-slate-950/40 p-4">
         <p className="text-xs text-zinc-500">
           <strong className="text-cyan-400">Base-60 QR Codes</strong> use MOSS60
-          encoding for compact, quantum-resistant data storage. Perfect for key
-          exchange and secure data transfer.
+          encoding for compact, tamper-evident payload formatting. Helpful for
+          key exchange and integrity-oriented data transfer.
+          <a
+            href="/docs/security-notes/qr-messaging-threat-model.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-1 text-cyan-300 underline decoration-dotted underline-offset-2 hover:text-cyan-200"
+            title="Read what MOSS60 QR encoding guarantees (and what it does not)."
+          >
+            Security notes
+          </a>
         </p>
       </div>
     </div>

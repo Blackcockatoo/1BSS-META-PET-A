@@ -331,7 +331,7 @@ export function MessagingPanel({ compact = false }: MessagingPanelProps) {
           {!isConnected && (
             <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
               <p className="text-xs text-amber-200">
-                Establish secure channel with key exchange
+                Establish an encrypted channel with key exchange
               </p>
 
               {!activeConversation.handshakeState && (
