@@ -458,7 +458,7 @@ npm run dev
 
 ## 📝 License
 
-Part of the Auralia MetaPet project.
+This documentation and the addon system code are part of the MIT-licensed repository. See [LICENSE](/LICENSE).
 
 ---
 

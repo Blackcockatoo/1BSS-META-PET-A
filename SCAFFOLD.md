@@ -432,7 +432,7 @@ pnpm dev
 
 ## License
 
-This scaffold is part of the Jewble Meta-Pet project.
+This scaffold is part of this MIT-licensed repository. See [LICENSE](/LICENSE).
 
 ---
 
