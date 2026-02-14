@@ -15,6 +15,11 @@ export interface LessonContext {
 type SeedKey = 'red' | 'black' | 'blue';
 type ModeKey = 'spiral' | 'mandala' | 'sound' | 'particles' | 'journey';
 
+const DESKTOP_CANVAS_WIDTH = 800;
+const SPIRAL_CANVAS_HEIGHT = 600;
+const SQUARE_CANVAS_SIZE = 800;
+const MOBILE_BREAKPOINT = 768;
+
 interface PaintPoint {
   x: number;
   y: number;
@@ -30,6 +35,8 @@ interface Particle {
   size: number;
   mass: number;
 }
+
+type CanvasPointerEvent = PointerEvent | MouseEvent | TouchEvent;
 
 const SEEDS: Record<SeedKey, string> = {
   red: '113031491493585389543778774590997079619617525721567332336510',
@@ -64,6 +71,10 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
   const [showPostPrompt, setShowPostPrompt] = useState(false);
   const [postResponse, setPostResponse] = useState('');
   const [preAcknowledged, setPreAcknowledged] = useState(!lessonContext?.prePrompt);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [canvasWidth, setCanvasWidth] = useState(DESKTOP_CANVAS_WIDTH);
+  const [spiralCanvasHeight, setSpiralCanvasHeight] = useState(SPIRAL_CANVAS_HEIGHT);
+  const [squareCanvasSize, setSquareCanvasSize] = useState(SQUARE_CANVAS_SIZE);
 
   const incrementDnaInteraction = useEducationStore((s) => s.incrementDnaInteraction);
   const recordPostResponse = useEducationStore((s) => s.recordPostResponse);
@@ -76,6 +87,29 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
   const particlesRef = useRef<Particle[]>([]);
   const mouseRef = useRef({ x: 0, y: 0, down: false });
   const paintedPatternRef = useRef<PaintPoint[]>([]);
+
+  const updateViewportSizing = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const mobile = window.innerWidth < MOBILE_BREAKPOINT;
+    const nextCanvasWidth = Math.min(DESKTOP_CANVAS_WIDTH, Math.max(280, window.innerWidth - 40));
+    setIsMobileViewport(mobile);
+    setCanvasWidth(nextCanvasWidth);
+    setSpiralCanvasHeight(Math.round(nextCanvasWidth * 0.75));
+    setSquareCanvasSize(nextCanvasWidth);
+  }, []);
+
+  const getPointerPosition = useCallback((canvas: HTMLCanvasElement, event: CanvasPointerEvent) => {
+    const rect = canvas.getBoundingClientRect();
+    const hasTouches = 'touches' in event && event.touches.length > 0;
+    const touchPoint = hasTouches ? event.touches[0] : null;
+    const clientX = touchPoint ? touchPoint.clientX : 'clientX' in event ? event.clientX : 0;
+    const clientY = touchPoint ? touchPoint.clientY : 'clientY' in event ? event.clientY : 0;
+
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  }, []);
 
   // Track canvas interactions for education mode
   const trackInteraction = useCallback(() => {
@@ -146,6 +180,15 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     );
   }, [audioInitialized, getSequence, tempo]);
 
+  useEffect(() => {
+    updateViewportSizing();
+    window.addEventListener('resize', updateViewportSizing);
+
+    return () => {
+      window.removeEventListener('resize', updateViewportSizing);
+    };
+  }, [updateViewportSizing]);
+
   // 3D Spiral visualisation
   useEffect(() => {
     if (!canvasRef.current || activeMode !== 'spiral') return;
@@ -154,11 +197,12 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0e27);
 
-    const camera = new THREE.PerspectiveCamera(75, 800 / 600, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, canvasWidth / spiralCanvasHeight, 0.1, 1000);
     camera.position.z = 20;
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setSize(800, 600);
+    renderer.setSize(canvasWidth, spiralCanvasHeight, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.4));
     const pl1 = new THREE.PointLight(0xffd700, 1.5);
@@ -222,10 +266,10 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
-    const onMouseMove = (event: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const onPointerMove = (event: PointerEvent) => {
+      const point = getPointerPosition(canvas, event);
+      mouse.x = (point.x / canvasWidth) * 2 - 1;
+      mouse.y = -(point.y / spiralCanvasHeight) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(scene.children, true);
 
@@ -244,7 +288,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         }
       }
     };
-    canvas.addEventListener('mousemove', onMouseMove);
+    canvas.addEventListener('pointermove', onPointerMove);
 
     let animId: number;
     const animate = () => {
@@ -259,7 +303,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
     return () => {
       cancelAnimationFrame(animId);
-      canvas.removeEventListener('mousemove', onMouseMove);
+      canvas.removeEventListener('pointermove', onPointerMove);
 
       scene.remove(group);
       group.traverse((object) => {
@@ -279,7 +323,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
       renderer.dispose();
     };
-  }, [activeMode, selectedSeed, harmony, audioInitialized, getSequence, playChord]);
+  }, [activeMode, selectedSeed, harmony, audioInitialized, getSequence, playChord, canvasWidth, spiralCanvasHeight, getPointerPosition, trackInteraction]);
 
   // Mandala mode
   useEffect(() => {
@@ -288,8 +332,8 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     const canvas = particleCanvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const W = (canvas.width = 800);
-    const H = (canvas.height = 800);
+    const W = (canvas.width = squareCanvasSize);
+    const H = (canvas.height = squareCanvasSize);
     const cx = W / 2;
     const cy = H / 2;
 
@@ -341,10 +385,10 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
       mouseRef.current.down = false;
       setPaintedPattern([...paintedPatternRef.current]);
     };
-    const onMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+    const onMove = (e: PointerEvent) => {
+      const point = getPointerPosition(canvas, e);
+      const x = point.x;
+      const y = point.y;
       mouseRef.current.x = x;
       mouseRef.current.y = y;
       if (mouseRef.current.down) {
@@ -356,9 +400,10 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
       }
     };
 
-    canvas.addEventListener('mousedown', onDown);
-    canvas.addEventListener('mouseup', onUp);
-    canvas.addEventListener('mousemove', onMove);
+    canvas.addEventListener('pointerdown', onDown);
+    canvas.addEventListener('pointerup', onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('pointermove', onMove);
 
     let animId: number;
     const loop = () => { animId = requestAnimationFrame(loop); drawMandala(); };
@@ -366,11 +411,12 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
     return () => {
       cancelAnimationFrame(animId);
-      canvas.removeEventListener('mousedown', onDown);
-      canvas.removeEventListener('mouseup', onUp);
-      canvas.removeEventListener('mousemove', onMove);
+      canvas.removeEventListener('pointerdown', onDown);
+      canvas.removeEventListener('pointerup', onUp);
+      canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('pointermove', onMove);
     };
-  }, [activeMode, selectedSeed, harmony, audioInitialized, getSequence, playChord]);
+  }, [activeMode, selectedSeed, harmony, audioInitialized, getSequence, playChord, squareCanvasSize, getPointerPosition, trackInteraction]);
 
   useEffect(() => {
     paintedPatternRef.current = paintedPattern;
@@ -388,8 +434,8 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     const canvas = particleCanvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const W = (canvas.width = 800);
-    const H = (canvas.height = 800);
+    const W = (canvas.width = squareCanvasSize);
+    const H = (canvas.height = squareCanvasSize);
 
     const sequence = getSequence();
     particlesRef.current = sequence.map((digit) => ({
@@ -403,12 +449,12 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
       mass: digit + 1,
     }));
 
-    const onMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouseRef.current.x = e.clientX - rect.left;
-      mouseRef.current.y = e.clientY - rect.top;
+    const onMove = (e: PointerEvent) => {
+      const point = getPointerPosition(canvas, e);
+      mouseRef.current.x = point.x;
+      mouseRef.current.y = point.y;
     };
-    canvas.addEventListener('mousemove', onMove);
+    canvas.addEventListener('pointermove', onMove);
 
     let animId: number;
     const animate = () => {
@@ -465,9 +511,9 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
     return () => {
       cancelAnimationFrame(animId);
-      canvas.removeEventListener('mousemove', onMove);
+      canvas.removeEventListener('pointermove', onMove);
     };
-  }, [activeMode, selectedSeed, consciousness, getSequence]);
+  }, [activeMode, selectedSeed, consciousness, getSequence, squareCanvasSize, getPointerPosition]);
 
   const initAudioAndPlay = async () => {
     if (!audioInitialized) {
@@ -492,13 +538,13 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900 via-transparent to-transparent" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto p-6">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-3 pb-28 pt-6 sm:px-4 md:px-6">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-amber-400 via-amber-200 to-amber-400 bg-clip-text text-transparent animate-pulse">
+          <h1 className="mb-4 bg-gradient-to-r from-amber-400 via-amber-200 to-amber-400 bg-clip-text text-4xl font-bold text-transparent animate-pulse sm:text-5xl md:text-6xl">
             ✨ Digital DNA ✨
           </h1>
-          <p className="text-2xl text-blue-300 font-light mb-2">
+          <p className="mb-2 text-lg text-blue-300 font-light sm:text-xl md:text-2xl">
             Sacred Geometry &amp; Sonic Consciousness
           </p>
           {lessonContext && (
@@ -512,14 +558,14 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         </div>
 
         {/* Mode Selector */}
-        <div className="flex justify-center gap-4 mb-12 flex-wrap">
+        <div className="mb-10 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-4 md:mb-12">
           {modes.map((mode) => (
             <button
               key={mode.id}
               onClick={() => setActiveMode(mode.id)}
-              className={`group relative px-6 py-4 rounded-2xl transition-all duration-300 ${
+              className={`group relative min-h-20 px-3 py-3 rounded-2xl transition-all duration-300 sm:px-6 sm:py-4 ${
                 activeMode === mode.id
-                  ? 'bg-gradient-to-br from-amber-500 to-amber-600 shadow-2xl shadow-amber-500/50 scale-110'
+                  ? 'bg-gradient-to-br from-amber-500 to-amber-600 shadow-2xl shadow-amber-500/50 sm:scale-105'
                   : 'bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/30'
               }`}
             >
@@ -537,19 +583,20 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         <div className="mb-12">
           {/* DNA Spiral */}
           {activeMode === 'spiral' && (
-            <div className="bg-slate-900/50 rounded-3xl p-8 border border-blue-800/30 backdrop-blur-sm">
+            <div className="bg-slate-900/50 rounded-2xl border border-blue-800/30 p-4 backdrop-blur-sm sm:rounded-3xl sm:p-8">
               <div className="text-center mb-6">
                 <h2 className="text-3xl font-bold text-amber-300 mb-2">
                   🌀 DNA Helix Explorer
                 </h2>
                 <p className="text-blue-300">
-                  Move your cursor over the glowing spheres to hear their song
+                  Tap or move across the glowing spheres to hear their song
                 </p>
               </div>
               <div className="flex justify-center">
                 <canvas
                   ref={canvasRef}
-                  className="rounded-xl shadow-2xl shadow-blue-900/50 border border-blue-700/30"
+                  className="h-auto w-full max-w-full rounded-xl border border-blue-700/30 shadow-2xl shadow-blue-900/50 touch-none"
+                  style={{ width: canvasWidth, height: spiralCanvasHeight }}
                 />
               </div>
             </div>
@@ -557,19 +604,20 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
           {/* 🔮 Sacred Mandala */}
           {activeMode === 'mandala' && (
-            <div className="bg-slate-900/50 rounded-3xl p-8 border border-purple-800/30 backdrop-blur-sm">
+            <div className="bg-slate-900/50 rounded-2xl border border-purple-800/30 p-4 backdrop-blur-sm sm:rounded-3xl sm:p-8">
               <div className="text-center mb-6">
                 <h2 className="text-3xl font-bold text-amber-300 mb-2">
                   🔮 Sacred Mandala
                 </h2>
                 <p className="text-purple-300">
-                  Click and drag to paint your intention onto the pattern
+                  Draw with your finger to paint your intention onto the pattern
                 </p>
               </div>
               <div className="flex justify-center">
                 <canvas
                   ref={particleCanvasRef}
-                  className="rounded-xl shadow-2xl shadow-purple-900/50 border border-purple-700/30 cursor-crosshair"
+                  className="h-auto w-full max-w-full rounded-xl border border-purple-700/30 shadow-2xl shadow-purple-900/50 touch-none"
+                  style={{ width: squareCanvasSize, height: squareCanvasSize }}
                 />
               </div>
               <div className="text-center mt-6">
@@ -585,7 +633,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
           {/* ✨ Particle Field */}
           {activeMode === 'particles' && (
-            <div className="bg-slate-900/50 rounded-3xl p-8 border border-cyan-800/30 backdrop-blur-sm">
+            <div className="bg-slate-900/50 rounded-2xl border border-cyan-800/30 p-4 backdrop-blur-sm sm:rounded-3xl sm:p-8">
               <div className="text-center mb-6">
                 <h2 className="text-3xl font-bold text-amber-300 mb-2">
                   ✨ Particle Field
@@ -597,7 +645,8 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
               <div className="flex justify-center">
                 <canvas
                   ref={particleCanvasRef}
-                  className="rounded-xl shadow-2xl shadow-cyan-900/50 border border-cyan-700/30 cursor-none"
+                  className="h-auto w-full max-w-full rounded-xl border border-cyan-700/30 shadow-2xl shadow-cyan-900/50 touch-none"
+                  style={{ width: squareCanvasSize, height: squareCanvasSize, cursor: isMobileViewport ? "default" : "none" }}
                 />
               </div>
             </div>
@@ -605,7 +654,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
           {/* 🎵 Sound Temple */}
           {activeMode === 'sound' && (
-            <div className="bg-slate-900/50 rounded-3xl p-12 border border-pink-800/30 backdrop-blur-sm">
+            <div className="bg-slate-900/50 rounded-2xl border border-pink-800/30 p-5 backdrop-blur-sm sm:rounded-3xl sm:p-12">
               <div className="text-center mb-12">
                 <h2 className="text-4xl font-bold text-amber-300 mb-4">
                   🎵 Sound Temple
@@ -659,7 +708,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
           {/* 🧭 Guided Journey */}
           {activeMode === 'journey' && (
-            <div className="bg-slate-900/50 rounded-3xl p-12 border border-amber-800/30 backdrop-blur-sm">
+            <div className="bg-slate-900/50 rounded-2xl border border-amber-800/30 p-5 backdrop-blur-sm sm:rounded-3xl sm:p-12">
               <div className="max-w-3xl mx-auto">
                 <h2 className="text-4xl font-bold text-amber-300 mb-8 text-center">
                   🧭 Guided Journey
@@ -740,7 +789,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
                   {/* Step 5 */}
                   <JourneyStep step={5} icon="&#x1F680;" title="Begin Exploration" desc="Choose your path of discovery">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                       <button
                         onClick={() => setActiveMode('spiral')}
                         className="px-6 py-4 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-blue-500/50 hover:scale-105 transition-all"
@@ -774,8 +823,8 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         </div>
 
         {/* Universal Controls */}
-        <div className="fixed left-1/2 z-40 w-[min(95vw,56rem)] -translate-x-1/2 rounded-2xl border border-amber-600/30 bg-slate-900/90 px-4 py-3 shadow-2xl shadow-amber-500/20 backdrop-blur-lg bottom-[calc(6.25rem+env(safe-area-inset-bottom))] md:w-auto md:rounded-full md:px-8 md:py-4 md:bottom-[calc(6rem+env(safe-area-inset-bottom))]">
-          <div className="flex flex-wrap items-center justify-center gap-4 md:flex-nowrap md:gap-8">
+        <div className="fixed left-1/2 z-40 w-[min(95vw,56rem)] -translate-x-1/2 rounded-2xl border border-amber-600/30 bg-slate-900/90 px-3 py-3 shadow-2xl shadow-amber-500/20 backdrop-blur-lg bottom-[calc(1rem+env(safe-area-inset-bottom))] md:w-auto md:rounded-full md:px-8 md:py-4 md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          <div className="flex flex-wrap items-center justify-center gap-3 md:flex-nowrap md:gap-8">
             <div className="flex items-center gap-3">
               <span className="text-sm text-slate-400">DNA:</span>
               {(['red', 'blue', 'black'] as SeedKey[]).map((seed) => (
@@ -792,17 +841,17 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                 />
               ))}
             </div>
-            <div className="h-8 w-px bg-slate-600" />
+            <div className="hidden h-8 w-px bg-slate-600 md:block" />
             <div className="flex items-center gap-3">
               <span className="text-sm text-slate-400">Harmony:</span>
               <div className="text-amber-400 font-bold text-lg">{harmony}</div>
             </div>
-            <div className="h-8 w-px bg-slate-600" />
+            <div className="hidden h-8 w-px bg-slate-600 md:block" />
             <div className="flex items-center gap-3">
               <span className="text-sm text-slate-400">Awareness:</span>
               <div className="text-cyan-400 font-bold text-lg">{consciousness}%</div>
             </div>
-            <div className="h-8 w-px bg-slate-600" />
+            <div className="hidden h-8 w-px bg-slate-600 md:block" />
             <button
               onClick={initAudioAndPlay}
               disabled={isPlaying}
