@@ -33,6 +33,7 @@ const UI_STRINGS = {
       evolution: 'Evolution',
       miniGames: 'Mini-Games',
       breedingLab: 'Breeding Lab',
+      alchemistStation: 'Alchemist Station',
       classroomTools: 'Classroom Tools',
     },
     classroom: {
@@ -142,6 +143,7 @@ const UI_STRINGS = {
       evolution: 'Evolución',
       miniGames: 'Mini juegos',
       breedingLab: 'Laboratorio de crianza',
+      alchemistStation: 'Estación de alquimia',
       classroomTools: 'Herramientas del aula',
     },
     classroom: {
@@ -251,6 +253,7 @@ const UI_STRINGS = {
       evolution: 'Évolution',
       miniGames: 'Mini-jeux',
       breedingLab: 'Laboratoire de reproduction',
+      alchemistStation: 'Station d’alchimie',
       classroomTools: 'Outils de classe',
     },
     classroom: {

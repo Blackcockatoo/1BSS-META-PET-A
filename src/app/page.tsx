@@ -177,6 +177,38 @@ const PET_ID = 'metapet-primary';
 const SESSION_ANALYTICS_KEY = 'metapet-analytics';
 
 type SessionGoal = 'Calm' | 'Focus' | 'Recovery' | 'Creative';
+type AlchemyBase = 'vitality' | 'focus' | 'harmony';
+type AlchemyCatalyst = 'sunpetal' | 'moondew' | 'stardust';
+
+interface AlchemyRecipe {
+  base: AlchemyBase;
+  catalyst: AlchemyCatalyst;
+}
+
+interface BrewResult {
+  name: string;
+  effect: string;
+  potency: number;
+  brewedAt: number;
+}
+
+const ALCHEMY_BASE_LABELS: Record<AlchemyBase, string> = {
+  vitality: 'Vitality Essence',
+  focus: 'Focus Infusion',
+  harmony: 'Harmony Tonic',
+};
+
+const ALCHEMY_CATALYST_LABELS: Record<AlchemyCatalyst, string> = {
+  sunpetal: 'Sunpetal',
+  moondew: 'Moondew',
+  stardust: 'Stardust',
+};
+
+const ALCHEMY_CATALYST_EFFECTS: Record<AlchemyCatalyst, string> = {
+  sunpetal: 'warms the core and boosts mood stability',
+  moondew: 'settles the aura and improves recovery',
+  stardust: 'sharpens attention and amplifies curiosity',
+};
 
 interface GeometrySessionProfile {
   goal: SessionGoal;
@@ -197,6 +229,19 @@ function encodeSessionProfile(profile: GeometrySessionProfile): string {
   const json = JSON.stringify(profile);
   if (typeof window === 'undefined') return '';
   return window.btoa(json).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function createBrewResult(recipe: AlchemyRecipe, resonanceIndex: number, evolutionStage: string): BrewResult {
+  const stageBonus = evolutionStage === 'COSMIC' ? 12 : evolutionStage === 'ELDER' ? 8 : evolutionStage === 'ADULT' ? 4 : 0;
+  const potency = clamp(Math.round(resonanceIndex * 0.65 + stageBonus + Math.random() * 12), 20, 100);
+  const catalystEffect = ALCHEMY_CATALYST_EFFECTS[recipe.catalyst];
+
+  return {
+    name: `${ALCHEMY_CATALYST_LABELS[recipe.catalyst]} ${ALCHEMY_BASE_LABELS[recipe.base]}`,
+    effect: `${ALCHEMY_BASE_LABELS[recipe.base]} ${catalystEffect}.`,
+    potency,
+    brewedAt: Date.now(),
+  };
 }
 
 // Collapsible Section Component
@@ -348,6 +393,10 @@ export default function Home() {
   const [sessionGoal, setSessionGoal] = useState<SessionGoal>('Calm');
   const [sessionIntensityEnabled, setSessionIntensityEnabled] = useState(false);
   const [sessionIntensity, setSessionIntensity] = useState(55);
+  const [alchemyRecipe, setAlchemyRecipe] = useState<AlchemyRecipe>({ base: 'vitality', catalyst: 'sunpetal' });
+  const [latestBrew, setLatestBrew] = useState<BrewResult | null>(null);
+  const [brewHistory, setBrewHistory] = useState<BrewResult[]>([]);
+  const [brewCooldownUntil, setBrewCooldownUntil] = useState(0);
   const { locale, setLocale, strings } = useLocale();
 
   const deriveGeometrySessionProfile = useCallback((): GeometrySessionProfile | null => {
@@ -422,6 +471,19 @@ export default function Home() {
       window.localStorage.setItem('metapet-low-bandwidth', String(next));
     }
   };
+
+  const handleBrewElixir = () => {
+    if (brewCooldownSeconds > 0) return;
+
+    const result = createBrewResult(alchemyRecipe, resonanceIndex, evolution.state);
+    setLatestBrew(result);
+    setBrewHistory(prev => [result, ...prev].slice(0, 5));
+    setBrewCooldownUntil(Date.now() + 8_000);
+
+    feed();
+    setLastWellnessAction('feed');
+  };
+
   const [lastWellnessAction, setLastWellnessAction] = useState<'feed' | 'clean' | 'play' | 'sleep' | null>(null);
   const wellnessSetupCompleted = useWellnessStore(state => state.setupCompletedAt);
   const checkStreaks = useWellnessStore(state => state.checkStreaks);
@@ -458,6 +520,8 @@ export default function Home() {
     });
     return `/geometry-sound?${params.toString()}`;
   }, [currentPetId, petName, petType, genomeHash, elementProfile, resonanceIndex]);
+
+  const brewCooldownSeconds = Math.max(0, Math.ceil((brewCooldownUntil - Date.now()) / 1000));
 
   const debouncedSave = useMemo(() => createDebouncedSave(1_000), []);
 
@@ -1672,6 +1736,94 @@ export default function Home() {
                   >
                     Switch to Offspring
                   </Button>
+                </div>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title={strings.sections.alchemistStation}
+            icon={<FlaskConical className="w-5 h-5 text-amber-300" />}
+          >
+            <div className="space-y-4">
+              <p className="text-xs text-zinc-400">
+                Combine base essences with catalysts to brew a quick support elixir for your companion.
+              </p>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Base Essence</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(ALCHEMY_BASE_LABELS) as AlchemyBase[]).map(base => (
+                      <Button
+                        key={base}
+                        size="sm"
+                        variant={alchemyRecipe.base === base ? 'default' : 'outline'}
+                        onClick={() => setAlchemyRecipe(prev => ({ ...prev, base }))}
+                        className={alchemyRecipe.base === base ? 'bg-amber-600 hover:bg-amber-700' : 'border-slate-700'}
+                      >
+                        {ALCHEMY_BASE_LABELS[base]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Catalyst</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(ALCHEMY_CATALYST_LABELS) as AlchemyCatalyst[]).map(catalyst => (
+                      <Button
+                        key={catalyst}
+                        size="sm"
+                        variant={alchemyRecipe.catalyst === catalyst ? 'default' : 'outline'}
+                        onClick={() => setAlchemyRecipe(prev => ({ ...prev, catalyst }))}
+                        className={alchemyRecipe.catalyst === catalyst ? 'bg-violet-600 hover:bg-violet-700' : 'border-slate-700'}
+                      >
+                        {ALCHEMY_CATALYST_LABELS[catalyst]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-100">
+                <p className="font-semibold">Current Formula</p>
+                <p className="mt-1">
+                  {ALCHEMY_CATALYST_LABELS[alchemyRecipe.catalyst]} + {ALCHEMY_BASE_LABELS[alchemyRecipe.base]}.
+                </p>
+                <p className="mt-1 text-amber-200/80">
+                  Resonance Index: {resonanceIndex} • Evolution Stage: {evolution.state}
+                </p>
+              </div>
+
+              <Button
+                onClick={handleBrewElixir}
+                disabled={brewCooldownSeconds > 0}
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:opacity-50"
+              >
+                <FlaskConical className="w-4 h-4 mr-2" />
+                {brewCooldownSeconds > 0 ? `Cooling retort (${brewCooldownSeconds}s)` : 'Brew Elixir'}
+              </Button>
+
+              {latestBrew && (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm space-y-1">
+                  <p className="font-semibold text-emerald-200">Latest Brew: {latestBrew.name}</p>
+                  <p className="text-zinc-300">{latestBrew.effect}</p>
+                  <p className="text-xs text-emerald-300">Potency {latestBrew.potency}% • Companion nourished</p>
+                </div>
+              )}
+
+              {brewHistory.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-zinc-500">Recent Brews</p>
+                  <div className="space-y-2">
+                    {brewHistory.map((brew) => (
+                      <div key={brew.brewedAt} className="rounded-md border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs">
+                        <p className="text-zinc-200">{brew.name}</p>
+                        <p className="text-zinc-400">Potency {brew.potency}%</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
