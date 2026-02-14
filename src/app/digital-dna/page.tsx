@@ -17,9 +17,7 @@ export default function DigitalDNAPage() {
     <div className="relative">
       <Link
         href="/"
-        className="fixed top-3 left-3 z-50 px-3 py-1.5 rounded-full text-xs font-medium
-                   bg-slate-900/80 border border-slate-700 text-zinc-300 hover:text-white
-                   hover:border-amber-500/50 transition-colors backdrop-blur-sm"
+        className="fixed left-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 rounded-full border border-slate-700 bg-slate-900/90 px-4 py-2 text-sm font-medium text-zinc-200 backdrop-blur-sm transition-colors hover:border-amber-500/50 hover:text-white"
       >
         &larr; Back to Pet
       </Link>
