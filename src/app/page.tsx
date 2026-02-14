@@ -1759,20 +1759,33 @@ export default function Home() {
 
           {/* Sacred Geometry & Sound */}
           <div className="bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-cyan-500/10 rounded-2xl border border-amber-500/20 p-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-3">
                 <Orbit className="w-6 h-6 text-amber-400" />
                 <div>
                   <h2 className="text-lg font-bold text-white">Sacred Geometry &amp; Sound</h2>
                   <p className="text-xs text-zinc-400">Experience DNA as living geometry, music, and light</p>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    Includes ALCHEMEST Studio for advanced manual sigil work plus MOSS60 integrity signatures using the same base-60 sequence family.
+                  </p>
                 </div>
               </div>
-              <Link
-                href="/geometry-sound"
-                className="px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-sm font-medium hover:bg-amber-500/30 hover:border-amber-400 transition-colors touch-manipulation"
-              >
-                Generate My Pet Resonance
-              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/geometry-sound"
+                  className="px-4 py-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-sm font-medium hover:bg-amber-500/30 hover:border-amber-400 transition-colors touch-manipulation"
+                >
+                  Generate My Pet Resonance
+                </Link>
+                <Link
+                  href="/moss60-enhanced.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 text-sm font-medium hover:bg-cyan-500/30 hover:border-cyan-400 transition-colors touch-manipulation"
+                >
+                  Open ALCHEMEST + Security
+                </Link>
+              </div>
             </div>
           </div>
 
