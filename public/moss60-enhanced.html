@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALCHEMEST - Seed of Life Studio v4</title>
+<style>
+  :root {
+    --bg:#0b0f14; --panel:#0e1420; --ink:#e6eef9; --muted:#9fb0c6; 
+    --gold:#e6c76c; --rose:#f48fb1; --verdant:#66bb6a; 
+    --line:#7dd3fc55; --rim:#93c5fdaa; --accent:#a5b4fc; --hl:#00ffd0; 
+    --border:#ffffff22; --radius:12px;
+    --groupA:#e6c76c; --groupB:#f48fb1; --groupC:#66bb6a;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; background:var(--bg); color:var(--ink); 
+              font:14px ui-monospace,SF Mono,Consolas,monospace; overflow:hidden; }
+  
+  .athanor { display:grid; grid-template-columns:64px 1fr 340px; 
+             grid-template-rows:48px 1fr 32px; height:100vh; }
+  
+  /* Menubar */
+  .menubar { grid-column:1/-1; display:flex; align-items:center; gap:16px;
+             padding:0 16px; background:linear-gradient(135deg,#0d1420,#111825);
+             border-bottom:1px solid var(--border); }
+  .brand { font-weight:700; font-size:15px; letter-spacing:0.5px; 
+           background:linear-gradient(135deg,var(--gold),var(--hl));
+           -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .brand::before { content:"🜂 "; }
+  .quick { flex:1; max-width:400px; background:var(--panel); 
+           border:1px solid var(--border); border-radius:var(--radius);
+           padding:8px 12px; color:var(--ink); font-size:13px; }
+  .quick::placeholder { color:var(--muted); }
+  .help-btn { background:var(--panel); border:1px solid var(--border); border-radius:8px;
+              padding:6px 12px; color:var(--muted); cursor:pointer; font-size:12px; }
+  .help-btn:hover { background:var(--accent); color:white; }
+  
+  /* Instruments (left toolbar) */
+  .instruments { background:linear-gradient(180deg,#111725,#0d1320);
+                 border-right:1px solid var(--border); padding:8px;
+                 display:flex; flex-direction:column; gap:8px; }
+  .instrument { width:48px; height:48px; border-radius:var(--radius);
+                background:var(--panel); border:1px solid var(--border);
+                display:grid; place-items:center; cursor:pointer;
+                transition:all 0.2s; position:relative; }
+  .instrument:hover { background:#1a2332; border-color:var(--accent); 
+                      transform:translateY(-2px); }
+  .instrument.active { background:var(--accent); border-color:var(--hl);
+                       box-shadow:0 0 20px var(--accent)55; }
+  .instrument svg { width:24px; height:24px; }
+  .instrument-tip { position:absolute; left:60px; top:50%; transform:translateY(-50%);
+                    background:var(--panel); border:1px solid var(--border);
+                    padding:6px 10px; border-radius:8px; white-space:nowrap;
+                    pointer-events:none; opacity:0; transition:opacity 0.2s;
+                    font-size:12px; z-index:100; }
+  .instrument:hover .instrument-tip { opacity:1; }
+  
+  /* The Athanor Canvas */
+  .stage { position:relative; overflow:hidden; }
+  #scene { width:100%; height:100%; touch-action:none;
+           background:radial-gradient(1100px 800px at 50% 40%, #0d141e 0%, #0b0f14 70%);
+           cursor:crosshair; }
+  .bindu { fill:#fff; opacity:0.7; }
+  .circle { stroke:var(--rim); fill:none; stroke-width:1.5; }
+  .petal { stroke:var(--line); fill:none; stroke-width:1; opacity:0.6; }
+  .chord { stroke:var(--rose); fill:none; stroke-width:2; opacity:0.8; }
+  .user-chord { stroke:var(--hl); fill:none; stroke-width:2; opacity:0.9; }
+  .digit-group { cursor:pointer; transition:all 0.15s; }
+  .digit-group:hover { transform:scale(1.15); }
+  .digit-group.selected { filter:drop-shadow(0 0 8px var(--hl)) !important; }
+  .digit-ring { fill:none; stroke:var(--gold); stroke-width:1.2; }
+  .digit-dot { fill:var(--gold); }
+  .digit-chord { stroke:var(--gold); stroke-width:1; }
+  .digit-notch { stroke:var(--gold); stroke-width:1.5; stroke-linecap:round; }
+  .digit-text { fill:var(--gold); font-size:14px; font-weight:600; text-anchor:middle;
+                dominant-baseline:middle; paint-order:stroke; stroke:rgba(11,15,20,0.6);
+                stroke-width:0.6; letter-spacing:-0.2px; }
+  .user-circle { stroke:var(--accent); fill:none; stroke-width:1.5; opacity:0.7; }
+  .measure-line { stroke:var(--hl); stroke-width:2; stroke-dasharray:5,5; }
+  .measure-arc { stroke:var(--hl); fill:none; stroke-width:2; }
+  .measure-text { fill:var(--hl); font-size:16px; font-weight:bold; text-anchor:middle; }
+  
+  /* Grimoire (right panel) */
+  .grimoire { background:var(--panel); border-left:1px solid var(--border);
+              padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+  .grimoire-section { background:#0d1117; border:1px solid var(--border);
+                      border-radius:var(--radius); padding:12px; }
+  .section-title { font-size:11px; color:var(--hl); text-transform:uppercase;
+                   letter-spacing:1px; margin-bottom:10px; font-weight:600; }
+  .section-title::before { content:"◈ "; opacity:0.5; }
+  
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  select, input[type="text"], input[type="number"], button { 
+    width:100%; background:var(--panel); color:var(--ink);
+    border:1px solid var(--border); border-radius:8px;
+    padding:8px 10px; font-size:13px; font-family:inherit; }
+  input[type="color"] { width:40px; height:32px; padding:2px; border-radius:6px;
+                        background:var(--panel); border:1px solid var(--border); cursor:pointer; }
+  button { cursor:pointer; transition:all 0.2s; margin-top:4px; }
+  button:hover { background:#1a2332; border-color:var(--accent); }
+  button.primary { background:linear-gradient(135deg,var(--accent),#6366f1);
+                   border:none; color:white; font-weight:600; }
+  button.primary:hover { transform:translateY(-1px); box-shadow:0 4px 12px var(--accent)44; }
+  
+  .operation-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
+  .operation { padding:8px; font-size:11px; text-align:center; 
+               border-radius:6px; background:var(--bg); }
+  .operation:hover { background:var(--accent); color:white; }
+  .operation.active { background:var(--gold); color:var(--bg); }
+  
+  .sigil-badge { display:inline-flex; align-items:center; gap:6px;
+                 padding:4px 10px; border-radius:999px; font-size:11px;
+                 background:var(--bg); border:1px solid var(--border); margin:2px; }
+  .sigil-dot { width:8px; height:8px; border-radius:50%; }
+  
+  .color-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .color-label { flex:1; font-size:12px; color:var(--muted); }
+  
+  /* Homunculus (status bar) */
+  .homunculus { grid-column:1/-1; display:flex; justify-content:space-between;
+                align-items:center; padding:0 16px; background:var(--panel);
+                border-top:1px solid var(--border); font-size:12px; color:var(--muted); }
+  .homunculus-whisper { color:var(--hl); font-style:italic; }
+  
+  /* Console */
+  .console { background:var(--bg); border:1px solid var(--border); border-radius:8px;
+             padding:8px; font-size:11px; max-height:100px; overflow-y:auto;
+             font-family:ui-monospace,monospace; color:var(--muted); }
+  .console-line { padding:2px 0; }
+  .console-line.success { color:var(--verdant); }
+  .console-line.error { color:var(--rose); }
+  .console-line.info { color:var(--accent); }
+  
+  /* Help Modal */
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:1000;
+                   display:none; place-items:center; }
+  .modal-overlay.visible { display:grid; }
+  .modal { background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+           padding:24px; max-width:600px; max-height:80vh; overflow-y:auto; }
+  .modal h2 { color:var(--gold); margin-bottom:16px; }
+  .modal h3 { color:var(--hl); margin:16px 0 8px; font-size:14px; }
+  .modal p, .modal li { color:var(--muted); font-size:13px; line-height:1.6; margin-bottom:8px; }
+  .modal code { background:var(--bg); padding:2px 6px; border-radius:4px; color:var(--gold); }
+  .modal-close { position:absolute; top:16px; right:16px; background:none; border:none;
+                 color:var(--muted); font-size:24px; cursor:pointer; }
+  
+  /* Animations */
+  @keyframes pulse { 0%, 100% { opacity:0.7; } 50% { opacity:1; } }
+  @keyframes rotate { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+  @keyframes scatter { 0% { transform:scale(1); opacity:1; } 100% { transform:scale(2); opacity:0; } }
+  @keyframes coalesce { 0% { transform:scale(2); opacity:0; } 100% { transform:scale(1); opacity:1; } }
+  .breathing { animation:pulse 3s ease-in-out infinite; }
+  .spinning { animation:rotate 60s linear infinite; }
+  .scattering { animation:scatter 1s ease-out forwards; }
+  .coalescing { animation:coalesce 1s ease-out forwards; }
+</style>
+</head>
+<body>
+<div class="athanor">
+  <!-- Menubar -->
+  <header class="menubar">
+    <div class="brand">ALCHEMEST v4</div>
+    <input id="hermesQuill" class="quick" placeholder="⌘K Incantations: SUMMON, STYLE, WEAVE, ROTATE, MEASURE...">
+    <button class="help-btn" id="helpBtn">? Help</button>
+  </header>
+
+  <!-- Instruments (left toolbar) -->
+  <aside class="instruments">
+    <div class="instrument active" data-tool="move" title="Move/Orbit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3"/>
+      </svg>
+      <span class="instrument-tip">Move/Orbit (V) — Drag to rotate</span>
+    </div>
+    
+    <div class="instrument" data-tool="seedBrush" title="Seed Brush">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><circle cx="12" cy="6" r="1"/>
+      </svg>
+      <span class="instrument-tip">Seed Brush (B) — Click to spawn circles</span>
+    </div>
+    
+    <div class="instrument" data-tool="chordPen" title="Chord Pen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><line x1="7" y1="15" x2="17" y2="9"/>
+      </svg>
+      <span class="instrument-tip">Chord Pen (C) — Click two nodes to connect</span>
+    </div>
+    
+    <div class="instrument" data-tool="partition" title="Partition Wand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><path d="M12 3 L12 21 M3 12 L21 12"/>
+      </svg>
+      <span class="instrument-tip">Partition (P) — Click nodes: A→B→C→none</span>
+    </div>
+    
+    <div class="instrument" data-tool="symmetry" title="Mirror of Symmetry">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2L12 22 M8 6L12 2L16 6 M8 18L12 22L16 18"/>
+      </svg>
+      <span class="instrument-tip">Mirror (Y) — Reflect chords across axis</span>
+    </div>
+    
+    <div class="instrument" data-tool="color" title="Color Alchemist">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+      </svg>
+      <span class="instrument-tip">Tincture (A) — See palette in Grimoire</span>
+    </div>
+    
+    <div class="instrument" data-tool="measure" title="Measure">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2v20M17 7l-5 5-5-5"/>
+      </svg>
+      <span class="instrument-tip">Measure (R) — Click two nodes for angle</span>
+    </div>
+  </aside>
+
+  <!-- The Athanor (main canvas) -->
+  <main class="stage">
+    <svg id="scene" viewBox="-520 -520 1040 1040" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <radialGradient id="binduGlow">
+          <stop offset="0%" stop-color="#fff" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#00ffd0" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <g id="geometryLayer"></g>
+      <g id="userCircleLayer"></g>
+      <g id="chordLayer"></g>
+      <g id="digitLayer"></g>
+      <g id="measureLayer"></g>
+    </svg>
+  </main>
+
+  <!-- Grimoire (right panel) -->
+  <aside class="grimoire">
+    <div class="grimoire-section">
+      <div class="section-title">Sequences</div>
+      <label>Summon Sequence</label>
+      <select id="seqSel">
+        <option value="Blue60" selected>Blue60 (Base 60)</option>
+        <option value="Red60">Red60 (Base 60)</option>
+        <option value="Black60">Black60 / Fib60</option>
+        <option value="Blue900">Blue900 (Base 900)</option>
+      </select>
+      <label style="margin-top:8px">Positions on Rim</label>
+      <select id="countSel">
+        <option value="60">60 Digits</option>
+        <option value="108">108 (one set)</option>
+        <option value="216">216 (two sets)</option>
+        <option value="324" selected>324 (all three)</option>
+      </select>
+    </div>
+
+    <div class="grimoire-section">
+      <div class="section-title">Numeral Glyphs</div>
+      <select id="numeralStyle">
+        <option value="numeric" selected>Arabic Numerals</option>
+        <option value="petalDots">Petal Dots</option>
+        <option value="hexBraille">Hex-Braille</option>
+        <option value="chordSigils">Chord Sigils</option>
+        <option value="notchRunes">Notch Runes</option>
+      </select>
+    </div>
+
+    <div class="grimoire-section">
+      <div class="section-title">Sacred Geometry</div>
+      <select id="geometryType">
+        <option value="seed">Seed of Life</option>
+        <option value="flower">Flower of Life</option>
+        <option value="metatron">Metatron's Cube</option>
+        <option value="vesica">Vesica Piscis</option>
+      </select>
+      <label style="margin-top:8px">
+        <input type="checkbox" id="showGeometry" checked style="width:auto;margin-right:6px">
+        Show Geometry
+      </label>
+    </div>
+
+    <div class="grimoire-section">
+      <div class="section-title">Seven Operations</div>
+      <div class="operation-grid">
+        <button class="operation" data-op="calcination">🜕 Calcination</button>
+        <button class="operation" data-op="dissolution">🜄 Dissolution</button>
+        <button class="operation" data-op="separation">🜁 Separation</button>
+        <button class="operation" data-op="conjunction">🜍 Conjunction</button>
+        <button class="operation" data-op="fermentation">🜔 Fermentation</button>
+        <button class="operation" data-op="distillation">🜃 Distillation</button>
+        <button class="operation" data-op="coagulation">🜎 Coagulation</button>
+      </div>
+    </div>
+
+    <div class="grimoire-section">
+      <div class="section-title">Partitions (A/B/C)</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px">
+        <span class="sigil-badge">
+          <span class="sigil-dot" style="background:var(--groupA)"></span>
+          A: <strong id="countA">0</strong>
+        </span>
+        <span class="sigil-badge">
+          <span class="sigil-dot" style="background:var(--groupB)"></span>
+          B: <strong id="countB">0</strong>
+        </span>
+        <span class="sigil-badge">
+          <span class="sigil-dot" style="background:var(--groupC)"></span>
+          C: <strong id="countC">0</strong>
+        </span>
+      </div>
+      <button class="primary" id="applyPartitions">Apply Partitions (Auto)</button>
+      <button id="clearGroups">Clear Groups</button>
+    </div>
+
+    <div class="grimoire-section">
+      <div class="section-title">Chord Patterns</div>
+      <select id="chordPreset">
+        <option value="none">None</option>
+        <option value="triangle">Triangle (120°)</option>
+        <option value="square">Square (90°)</option>
+        <option value="pentagon">Pentagon (72°)</option>
+        <option value="hexagon">Hexagon (60°)</option>
+        <option value="star5">5-Point Star</option>
+        <option value="star6">6-Point Star</option>
+        <option value="fibonacci">Fibonacci Fan</option>
+        <option value="golden">Golden Ratio</option>
+      </select>
+      <button id="applyChords" style="margin-top:6px">Manifest Chords</button>
+      <button id="clearChords">Clear Chords</button>
+    </div>
+    
+    <div class="grimoire-section">
+      <div class="section-title">Tinctures (Colors)</div>
+      <div class="color-row">
+        <span class="color-label">Gold (digits)</span>
+        <input type="color" id="colorGold" value="#e6c76c">
+      </div>
+      <div class="color-row">
+        <span class="color-label">Rose (chords)</span>
+        <input type="color" id="colorRose" value="#f48fb1">
+      </div>
+      <div class="color-row">
+        <span class="color-label">Highlight</span>
+        <input type="color" id="colorHl" value="#00ffd0">
+      </div>
+    </div>
+
+    <div class="grimoire-section">
+      <div class="section-title">Console</div>
+      <div class="console" id="console">
+        <div class="console-line success">🜂 ALCHEMEST v4 ready. All instruments functional.</div>
+      </div>
+    </div>
+
+    <button class="primary" id="coagulate" style="margin-top:8px">⤓ Coagulate Sigil (Save SVG)</button>
+  </aside>
+
+  <!-- Homunculus (status bar) -->
+  <footer class="homunculus">
+    <span id="statusLeft">Ready • <span class="homunculus-whisper" id="whisper">The Athanor breathes...</span></span>
+    <span id="statusRight">Base: 324 • CW • Zoom: 100%</span>
+  </footer>
+</div>
+
+<!-- Help Modal -->
+<div class="modal-overlay" id="helpModal">
+  <div class="modal" style="position:relative;">
+    <button class="modal-close" id="closeHelp">&times;</button>
+    <h2>🜂 ALCHEMEST Incantations</h2>
+    <h3>Sequences</h3>
+    <p><code>SUMMON BLUE60</code> — Load Blue60 sequence<br>
+       <code>SUMMON RED60</code> — Load Red60 sequence<br>
+       <code>SUMMON BLACK60</code> — Load Black60/Fib60 sequence</p>
+    <h3>Glyph Styles</h3>
+    <p><code>STYLE NUMERIC</code> — Arabic numerals<br>
+       <code>STYLE PETALDOTS</code> — Flower dot patterns<br>
+       <code>STYLE HEXBRAILLE</code> — Hexagonal braille<br>
+       <code>STYLE CHORDSIGILS</code> — Line-based sigils<br>
+       <code>STYLE NOTCHRUNES</code> — Radial notches</p>
+    <h3>Chord Patterns</h3>
+    <p><code>WEAVE TRIANGLE</code> — Triangular chords<br>
+       <code>WEAVE HEXAGON</code> — Hexagonal chords<br>
+       <code>WEAVE FIBONACCI</code> — Fibonacci fan<br>
+       <code>WEAVE GOLDEN</code> — Golden ratio step</p>
+    <h3>Operations</h3>
+    <p><code>ROTATE 45</code> — Rotate by degrees<br>
+       <code>MEASURE 0 30</code> — Measure between node indices<br>
+       <code>PARTITION</code> — Apply partition groups<br>
+       <code>CLEAR CHORDS</code> — Clear all chords<br>
+       <code>CLEAR CIRCLES</code> — Clear user circles</p>
+    <h3>Keyboard Shortcuts</h3>
+    <p>V = Move, B = Seed Brush, C = Chord Pen, P = Partition, Y = Mirror, A = Color, R = Measure</p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// ALCHEMEST v4 - Fully Functional Seed of Life Studio
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SEQS = {
+  Red60: "113031491493585389543778774590997079619617525721567332336510",
+  Black60: "011235831459437077415617853819099875279651673033695493257291",
+  Blue60: "012776329785893036118967145479098334781325217074992143965631",
+  Blue900: "127763297858930361189671454790983347813252170749921439656310".repeat(15)
+};
+
+const els = {
+  scene: document.getElementById('scene'),
+  geometryLayer: document.getElementById('geometryLayer'),
+  userCircleLayer: document.getElementById('userCircleLayer'),
+  chordLayer: document.getElementById('chordLayer'),
+  digitLayer: document.getElementById('digitLayer'),
+  measureLayer: document.getElementById('measureLayer'),
+  seqSel: document.getElementById('seqSel'),
+  countSel: document.getElementById('countSel'),
+  numeralStyle: document.getElementById('numeralStyle'),
+  geometryType: document.getElementById('geometryType'),
+  showGeometry: document.getElementById('showGeometry'),
+  chordPreset: document.getElementById('chordPreset'),
+  hermesQuill: document.getElementById('hermesQuill'),
+  console: document.getElementById('console'),
+  whisper: document.getElementById('whisper'),
+  countA: document.getElementById('countA'),
+  countB: document.getElementById('countB'),
+  countC: document.getElementById('countC'),
+  applyPartitions: document.getElementById('applyPartitions'),
+  clearGroups: document.getElementById('clearGroups'),
+  applyChords: document.getElementById('applyChords'),
+  clearChords: document.getElementById('clearChords'),
+  coagulate: document.getElementById('coagulate'),
+  colorGold: document.getElementById('colorGold'),
+  colorRose: document.getElementById('colorRose'),
+  colorHl: document.getElementById('colorHl'),
+  helpModal: document.getElementById('helpModal'),
+  helpBtn: document.getElementById('helpBtn'),
+  closeHelp: document.getElementById('closeHelp'),
+};
+
+let state = {
+  nodes: [],
+  chords: [],
+  userChords: [],
+  userCircles: [],
+  activeTool: 'move',
+  selectedNode: null,
+  chordStart: null,
+  measureStart: null,
+  groups: { a: new Set(), b: new Set(), c: new Set() },
+  mirrorAxis: 0,
+  visibleDigits: new Set(),
+};
+
+let rotationDeg = 0;
+let rotating = false;
+let lastAngleRad = 0;
+let rafId = null;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILITY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function svg(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+function polar(r, deg) { const rad = deg * Math.PI / 180; return [r * Math.cos(rad), r * Math.sin(rad)]; }
+
+function getSVGPoint(e) {
+  const rect = els.scene.getBoundingClientRect();
+  const scaleX = 1040 / rect.width;
+  const scaleY = 1040 / rect.height;
+  return [
+    (e.clientX - rect.left) * scaleX - 520,
+    (e.clientY - rect.top) * scaleY - 520
+  ];
+}
+
+function findNearestNode(x, y, maxDist = 50) {
+  let nearest = null;
+  let minDist = maxDist;
+  state.nodes.forEach((n, i) => {
+    const d = Math.hypot(n.x - x, n.y - y);
+    if (d < minDist) { minDist = d; nearest = i; }
+  });
+  return nearest;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONSOLE LOGGING
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MAX_LOG_LINES = 100;
+function trimConsole() {
+  while (els.console.children.length > MAX_LOG_LINES) {
+    els.console.removeChild(els.console.firstElementChild);
+  }
+}
+function logc(msg, type = '') {
+  const line = document.createElement('div');
+  line.className = 'console-line' + (type ? (' ' + type) : '');
+  line.textContent = msg;
+  els.console.appendChild(line);
+  trimConsole();
+  els.console.scrollTop = els.console.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GEOMETRY RENDERERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function clearGeometry() { els.geometryLayer.innerHTML = ''; }
+
+function drawSeedOfLife() {
+  const R = 210;
+  const centers = [
+    [0, 0], [R, 0], [R / 2, Math.sqrt(3) * R / 2], [-R / 2, Math.sqrt(3) * R / 2],
+    [-R, 0], [-R / 2, -Math.sqrt(3) * R / 2], [R / 2, -Math.sqrt(3) * R / 2]
+  ];
+  centers.forEach(([cx, cy], i) => {
+    const c = svg('circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', R);
+    c.setAttribute('class', 'circle breathing');
+    c.setAttribute('stroke-width', i === 0 ? 2 : 1);
+    els.geometryLayer.appendChild(c);
+  });
+  const bindu = svg('circle');
+  bindu.setAttribute('r', 6);
+  bindu.setAttribute('class', 'bindu');
+  bindu.setAttribute('fill', 'url(#binduGlow)');
+  bindu.setAttribute('filter', 'url(#glow)');
+  els.geometryLayer.appendChild(bindu);
+}
+
+function drawFlowerOfLife() {
+  const R = 105;
+  const centers = [[0, 0]];
+  for (let i = 0; i < 6; i++) centers.push(polar(R, i * 60));
+  for (let i = 0; i < 6; i++) centers.push(polar(2 * R, i * 60 + 30));
+  for (let i = 0; i < 6; i++) centers.push(polar(2 * R, i * 60 + 60));
+  centers.forEach(([cx, cy]) => {
+    const c = svg('circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', R);
+    c.setAttribute('class', 'circle breathing');
+    els.geometryLayer.appendChild(c);
+  });
+  const bindu = svg('circle');
+  bindu.setAttribute('r', 6); bindu.setAttribute('class', 'bindu');
+  bindu.setAttribute('fill', 'url(#binduGlow)');
+  els.geometryLayer.appendChild(bindu);
+}
+
+function drawMetatronsCube() {
+  const R = 210;
+  const centers = [[0, 0], [R, 0], [R / 2, Math.sqrt(3) * R / 2], [-R / 2, Math.sqrt(3) * R / 2],
+    [-R, 0], [-R / 2, -Math.sqrt(3) * R / 2], [R / 2, -Math.sqrt(3) * R / 2]];
+  const outer = []; for (let i = 0; i < 6; i++) outer.push(polar(R, i * 60));
+  const all = [...centers, ...outer];
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) {
+      const line = svg('line');
+      line.setAttribute('x1', all[i][0]); line.setAttribute('y1', all[i][1]);
+      line.setAttribute('x2', all[j][0]); line.setAttribute('y2', all[j][1]);
+      line.setAttribute('class', 'petal');
+      els.geometryLayer.appendChild(line);
+    }
+  }
+  centers.forEach(([cx, cy]) => {
+    const c = svg('circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', 8);
+    c.setAttribute('class', 'bindu');
+    els.geometryLayer.appendChild(c);
+  });
+}
+
+function drawVesicaPiscis() {
+  const R = 210;
+  const c1 = svg('circle');
+  c1.setAttribute('cx', -R / 2); c1.setAttribute('r', R);
+  c1.setAttribute('class', 'circle breathing'); c1.setAttribute('stroke-width', 2);
+  els.geometryLayer.appendChild(c1);
+  const c2 = svg('circle');
+  c2.setAttribute('cx', R / 2); c2.setAttribute('r', R);
+  c2.setAttribute('class', 'circle breathing'); c2.setAttribute('stroke-width', 2);
+  els.geometryLayer.appendChild(c2);
+  const line = svg('line');
+  line.setAttribute('y1', -Math.sqrt(3) * R / 2); line.setAttribute('y2', Math.sqrt(3) * R / 2);
+  line.setAttribute('class', 'petal'); els.geometryLayer.appendChild(line);
+}
+
+function renderGeometry() {
+  clearGeometry(); if (!els.showGeometry.checked) return;
+  const type = els.geometryType.value;
+  if (type === 'seed') drawSeedOfLife();
+  else if (type === 'flower') drawFlowerOfLife();
+  else if (type === 'metatron') drawMetatronsCube();
+  else if (type === 'vesica') drawVesicaPiscis();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GLYPH RENDERERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function drawPetalDots(g, digit) {
+  const patterns = {
+    0: [], 1: [[0, -6]], 2: [[0, -6], [0, 6]], 3: [[0, -6], [5, 3], [-5, 3]],
+    4: [[0, -6], [6, 0], [0, 6], [-6, 0]], 5: [[0, -6], [5, -2], [5, 4], [-5, 4], [-5, -2]],
+    6: [[5, -3], [5, 3], [0, 6], [-5, 3], [-5, -3], [0, -6]],
+    7: [[0, -6], [4, -3], [6, 2], [2, 6], [-2, 6], [-6, 2], [-4, -3]],
+    8: [[0, -7], [5, -4], [6, 1], [3, 6], [-3, 6], [-6, 1], [-5, -4], [0, 1]],
+    9: [[0, -6], [4, -4], [6, 0], [4, 4], [0, 6], [-4, 4], [-6, 0], [-4, -4], [0, 0]]
+  };
+  (patterns[digit] || []).forEach(([x, y]) => {
+    const dot = svg('circle'); dot.setAttribute('cx', x); dot.setAttribute('cy', y); dot.setAttribute('r', 1.5);
+    dot.setAttribute('class', 'digit-dot'); g.appendChild(dot);
+  });
+}
+
+function drawHexBraille(g, digit) {
+  const patterns = {
+    0: [0, 0, 0, 0, 0, 0], 1: [1, 0, 0, 0, 0, 0], 2: [1, 0, 1, 0, 0, 0], 3: [1, 0, 1, 0, 1, 0],
+    4: [1, 1, 1, 0, 1, 0], 5: [1, 1, 1, 0, 1, 1], 6: [1, 1, 1, 1, 1, 1], 7: [0, 1, 1, 1, 1, 1],
+    8: [0, 0, 1, 1, 1, 1], 9: [0, 0, 0, 1, 1, 1]
+  };
+  const pts = [[0, -6], [5, -3], [5, 3], [0, 6], [-5, 3], [-5, -3]];
+  (patterns[digit] || []).forEach((active, i) => {
+    if (active) {
+      const dot = svg('circle');
+      dot.setAttribute('cx', pts[i][0]); dot.setAttribute('cy', pts[i][1]); dot.setAttribute('r', 1.8);
+      dot.setAttribute('class', 'digit-dot'); g.appendChild(dot);
+    }
+  });
+}
+
+function drawChordSigils(g, digit) {
+  const patterns = {
+    0: [], 1: [[90, 270]], 2: [[30, 210]], 3: [[30, 210], [90, 270]],
+    4: [[0, 180]], 5: [[0, 180], [60, 240]], 6: [[0, 180], [60, 240], [120, 300]],
+    7: [[45, 225]], 8: [[45, 225], [135, 315]], 9: [[0, 180], [45, 225]]
+  };
+  (patterns[digit] || []).forEach(([a, b]) => {
+    const [x1, y1] = polar(8, a); const [x2, y2] = polar(8, b);
+    const line = svg('line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('class', 'digit-chord'); g.appendChild(line);
+  });
+}
+
+function drawNotchRunes(g, digit) {
+  const patterns = {
+    0: [], 1: [[0, 8]], 2: [[30, 8], [330, 8]], 3: [[0, 8], [120, 8], [240, 8]],
+    4: [[0, 8], [90, 8], [180, 8], [270, 8]], 5: [[0, 8], [30, 8], [330, 8]],
+    6: [[0, 8], [60, 8], [120, 8], [180, 8], [240, 8], [300, 8]],
+    7: [[45, 8], [135, 8], [225, 8], [315, 8]],
+    8: [[22.5, 8], [67.5, 8], [112.5, 8], [157.5, 8], [202.5, 8], [247.5, 8], [292.5, 8], [337.5, 8]],
+    9: [[0, 8], [40, 8], [80, 8], [120, 8], [160, 8], [200, 8], [240, 8], [280, 8], [320, 8]]
+  };
+  (patterns[digit] || []).forEach(([angle, r]) => {
+    const [x, y] = polar(r, angle);
+    const [x2, y2] = polar(r - 3, angle);
+    const notch = svg('line');
+    notch.setAttribute('x1', x); notch.setAttribute('y1', y);
+    notch.setAttribute('x2', x2); notch.setAttribute('y2', y2);
+    notch.setAttribute('class', 'digit-notch');
+    g.appendChild(notch);
+  });
+}
+
+function drawNumericGlyph(g, digit, digitChar, angle) {
+  const text = svg('text');
+  text.setAttribute('class', 'digit-text');
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('dominant-baseline', 'middle');
+  text.setAttribute('transform', `rotate(${-(angle + 90 + rotationDeg)})`);
+  text.textContent = typeof digitChar === 'string' ? digitChar : String(digit);
+  g.appendChild(text);
+}
+
+const GLYPHERS = {
+  numeric: drawNumericGlyph,
+  petalDots: drawPetalDots,
+  hexBraille: drawHexBraille,
+  chordSigils: drawChordSigils,
+  notchRunes: drawNotchRunes,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIGIT RENDERING
+// ═══════════════════════════════════════════════════════════════════════════
+
+function clearDigits() { els.digitLayer.innerHTML = ''; state.nodes = []; }
+function clearChords() { els.chordLayer.innerHTML = ''; state.chords = []; state.userChords = []; }
+function clearMeasure() { els.measureLayer.innerHTML = ''; }
+function clearUserCircles() { els.userCircleLayer.innerHTML = ''; state.userCircles = []; }
+
+function renderDigits() {
+  const seqName = els.seqSel.value;
+  const count = parseInt(els.countSel.value, 10);
+  const seq = SEQS[seqName];
+  if (!seq) { logc(`Sequence ${seqName} unavailable.`, 'error'); return; }
+  const style = els.numeralStyle.value;
+  const R = 360;
+
+  const digits = Array.from({ length: count }, (_, i) => (seq.charCodeAt(i % seq.length) - 48) | 0);
+  
+  clearDigits();
+  state.visibleDigits = new Set(Array.from({ length: count }, (_, i) => i));
+  
+  const frag = document.createDocumentFragment();
+  const rim = svg('circle'); rim.setAttribute('r', R); rim.setAttribute('class', 'digit-ring'); frag.appendChild(rim);
+
+  for (let i = 0; i < count; i++) {
+    const frac = i / count; const angle = frac * 360 - 90;
+    const [x, y] = polar(R, angle);
+
+    const g = svg('g');
+    g.setAttribute('transform', `translate(${x},${y}) rotate(${angle + 90})`);
+    g.setAttribute('class', 'digit-group');
+    g.dataset.index = i;
+
+    const d = svg('circle'); d.setAttribute('r', 1.6); d.setAttribute('class', 'digit-dot'); g.appendChild(d);
+
+    const glyph = svg('g'); glyph.setAttribute('class', 'glyph');
+    (GLYPHERS[style] || GLYPHERS.numeric)(glyph, digits[i], seq[i % seq.length], angle);
+    g.appendChild(glyph);
+
+    frag.appendChild(g);
+    state.nodes.push({ x, y, angle, digit: digits[i], char: seq[i % seq.length], el: g, glyph, index: i });
+  }
+
+  els.digitLayer.appendChild(frag);
+  els.statusRight.textContent = `Base: ${count} • ${seqName}`;
+  logc(`SUMMON ${seqName} • ${count} positions • glyph=${style}`, 'success');
+  refreshNumericGlyphOrientation();
+  updatePartitionBadges();
+}
+
+function refreshNumericGlyphOrientation() {
+  if (els.numeralStyle.value !== 'numeric') return;
+  state.nodes.forEach(node => {
+    if (!node || !node.glyph) return;
+    const text = node.glyph.querySelector('text.digit-text');
+    if (text) {
+      text.setAttribute('transform', `rotate(${-(node.angle + 90 + rotationDeg)})`);
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PARTITION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updatePartitionBadges() {
+  els.countA.textContent = state.groups.a.size;
+  els.countB.textContent = state.groups.b.size;
+  els.countC.textContent = state.groups.c.size;
+}
+
+function applyPartitions() {
+  state.groups = { a: new Set(), b: new Set(), c: new Set() };
+  const count = state.nodes.length;
+  if (count === 0) { logc('No nodes to partition.', 'error'); return; }
+  
+  for (let i = 0; i < count; i++) {
+    const bucket = (i % 3 === 0) ? 'a' : (i % 3 === 1) ? 'b' : 'c';
+    state.groups[bucket].add(i);
+  }
+  updatePartitionBadges();
+  applyGroupColors();
+  logc(`PARTITION applied (A=${state.groups.a.size} B=${state.groups.b.size} C=${state.groups.c.size})`, 'success');
+}
+
+function applyGroupColors() {
+  state.nodes.forEach((n, i) => {
+    n.el.style.filter = '';
+    if (state.groups.a.has(i)) n.el.style.filter = `drop-shadow(0 0 3px ${getComputedStyle(document.documentElement).getPropertyValue('--groupA')})`;
+    if (state.groups.b.has(i)) n.el.style.filter = `drop-shadow(0 0 3px ${getComputedStyle(document.documentElement).getPropertyValue('--groupB')})`;
+    if (state.groups.c.has(i)) n.el.style.filter = `drop-shadow(0 0 3px ${getComputedStyle(document.documentElement).getPropertyValue('--groupC')})`;
+  });
+}
+
+function cycleNodePartition(idx) {
+  const inA = state.groups.a.has(idx);
+  const inB = state.groups.b.has(idx);
+  const inC = state.groups.c.has(idx);
+  
+  state.groups.a.delete(idx);
+  state.groups.b.delete(idx);
+  state.groups.c.delete(idx);
+  
+  if (inA) state.groups.b.add(idx);
+  else if (inB) state.groups.c.add(idx);
+  else if (!inC) state.groups.a.add(idx);
+  
+  updatePartitionBadges();
+  applyGroupColors();
+}
+
+function handleClearGroups() {
+  state.groups = { a: new Set(), b: new Set(), c: new Set() };
+  updatePartitionBadges();
+  state.nodes.forEach(n => n.el.style.filter = '');
+  logc('Groups cleared.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHORD SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+function addChord(i, j, cls = 'chord') {
+  const n1 = state.nodes[i]; const n2 = state.nodes[j]; if (!n1 || !n2) return;
+  const l = svg('line');
+  l.setAttribute('x1', n1.x); l.setAttribute('y1', n1.y);
+  l.setAttribute('x2', n2.x); l.setAttribute('y2', n2.y);
+  l.setAttribute('class', cls);
+  els.chordLayer.appendChild(l);
+  state.chords.push(l);
+  return l;
+}
+
+function addUserChord(i, j) {
+  const l = addChord(i, j, 'user-chord');
+  if (l) state.userChords.push({ i, j, el: l });
+}
+
+function manifestChords() {
+  clearChords();
+  const preset = els.chordPreset.value;
+  const N = state.nodes.length;
+  if (N === 0) { logc('No nodes to weave chords.', 'error'); return; }
+  
+  const stepForSides = (sides) => Math.round(N / sides);
+  
+  if (preset === 'none') { logc('No chords rendered.'); return; }
+  
+  if (['triangle', 'square', 'pentagon', 'hexagon'].includes(preset)) {
+    const sides = { triangle: 3, square: 4, pentagon: 5, hexagon: 6 }[preset];
+    const step = stepForSides(sides);
+    for (let start = 0; start < sides; start++) {
+      for (let k = 0; k < sides; k++) {
+        const i = (start + k * step) % N;
+        const j = (start + ((k + 1) % sides) * step) % N;
+        addChord(i, j);
+      }
+    }
+    logc(`${sides}-gon manifested (step=${step}).`, 'success'); return;
+  }
+  if (preset === 'star5') {
+    const step = Math.round(N * 2 / 5);
+    for (let i = 0; i < N; i += Math.round(N / 5)) addChord(i, (i + step) % N);
+    logc('Star-5 woven.', 'success'); return;
+  }
+  if (preset === 'star6') {
+    const step = Math.round(N * 2 / 6);
+    for (let i = 0; i < N; i += Math.round(N / 6)) addChord(i, (i + step) % N);
+    logc('Star-6 woven.', 'success'); return;
+  }
+  if (preset === 'fibonacci') {
+    const F = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144];
+    for (let i = 0; i < N; i += Math.floor(N / 12)) {
+      F.forEach(f => addChord(i, (i + (f % N)) % N));
+    }
+    logc('Fibonacci fan drawn.', 'success'); return;
+  }
+  if (preset === 'golden') {
+    const phi = (1 + Math.sqrt(5)) / 2;
+    const step = Math.round(N / phi);
+    for (let i = 0; i < N; i++) addChord(i, (i + step) % N);
+    logc(`Golden step chords (step≈${step}).`, 'success'); return;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MIRROR SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+function reflectChords() {
+  const N = state.nodes.length;
+  const newChords = [];
+  
+  state.userChords.forEach(({ i, j }) => {
+    const ri = (N - i) % N;
+    const rj = (N - j) % N;
+    newChords.push({ i: ri, j: rj });
+  });
+  
+  newChords.forEach(({ i, j }) => addUserChord(i, j));
+  logc(`Reflected ${newChords.length} chords across axis.`, 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MEASUREMENT SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showMeasurement(i, j) {
+  clearMeasure();
+  const n1 = state.nodes[i];
+  const n2 = state.nodes[j];
+  if (!n1 || !n2) return;
+  
+  const line = svg('line');
+  line.setAttribute('x1', n1.x); line.setAttribute('y1', n1.y);
+  line.setAttribute('x2', n2.x); line.setAttribute('y2', n2.y);
+  line.setAttribute('class', 'measure-line');
+  els.measureLayer.appendChild(line);
+  
+  const N = state.nodes.length;
+  const arcSteps = Math.abs(j - i);
+  const angleDiff = (arcSteps / N) * 360;
+  const distance = Math.hypot(n2.x - n1.x, n2.y - n1.y);
+  
+  const midX = (n1.x + n2.x) / 2;
+  const midY = (n1.y + n2.y) / 2;
+  
+  const text = svg('text');
+  text.setAttribute('x', midX);
+  text.setAttribute('y', midY - 20);
+  text.setAttribute('class', 'measure-text');
+  text.textContent = `${angleDiff.toFixed(1)}° • ${arcSteps} steps`;
+  els.measureLayer.appendChild(text);
+  
+  logc(`MEASURE [${i}→${j}]: ${angleDiff.toFixed(2)}° (${arcSteps} steps, ${distance.toFixed(1)}px)`, 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SEVEN ALCHEMICAL OPERATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function isPrime(n) {
+  if (n < 2) return false;
+  if (n === 2) return true;
+  if (n % 2 === 0) return false;
+  for (let i = 3; i * i <= n; i += 2) {
+    if (n % i === 0) return false;
+  }
+  return true;
+}
+
+const OPERATIONS = {
+  calcination: () => {
+    state.nodes.forEach((n, i) => {
+      const visible = isPrime(n.digit) || n.digit === 0;
+      n.el.style.opacity = visible ? '1' : '0.15';
+      if (visible) state.visibleDigits.add(i);
+      else state.visibleDigits.delete(i);
+    });
+    logc('CALCINATION: Reduced to primes (0,2,3,5,7)', 'success');
+  },
+  
+  dissolution: () => {
+    state.nodes.forEach(n => {
+      n.el.classList.add('scattering');
+    });
+    setTimeout(() => {
+      state.nodes.forEach(n => {
+        n.el.classList.remove('scattering');
+        n.el.style.opacity = '0.3';
+      });
+    }, 1000);
+    logc('DISSOLUTION: Elements scattered into the void', 'info');
+  },
+  
+  separation: () => {
+    const hasGroups = state.groups.a.size + state.groups.b.size + state.groups.c.size > 0;
+    if (!hasGroups) {
+      logc('SEPARATION requires partition groups. Apply partitions first.', 'error');
+      return;
+    }
+    state.groups.a.forEach(i => {
+      const n = state.nodes[i];
+      if (n) n.el.style.transform += ' scale(1.3)';
+    });
+    state.groups.c.forEach(i => {
+      const n = state.nodes[i];
+      if (n) n.el.style.transform += ' scale(0.7)';
+    });
+    logc('SEPARATION: Groups A expanded, C contracted', 'success');
+  },
+  
+  conjunction: () => {
+    state.nodes.forEach(n => {
+      n.el.style.opacity = '1';
+      n.el.style.transform = n.el.style.transform.replace(/scale\([^)]+\)/g, '');
+    });
+    state.visibleDigits = new Set(state.nodes.map((_, i) => i));
+    logc('CONJUNCTION: All elements reunified', 'success');
+  },
+  
+  fermentation: () => {
+    let delay = 0;
+    state.nodes.forEach((n, i) => {
+      setTimeout(() => {
+        n.el.classList.add('coalescing');
+        setTimeout(() => n.el.classList.remove('coalescing'), 1000);
+      }, delay);
+      delay += 10;
+    });
+    logc('FERMENTATION: Growth wave initiated', 'success');
+  },
+  
+  distillation: () => {
+    const evens = new Set();
+    state.nodes.forEach((n, i) => {
+      if (i % 2 === 0) {
+        n.el.style.opacity = '1';
+        evens.add(i);
+      } else {
+        n.el.style.opacity = '0.1';
+      }
+    });
+    state.visibleDigits = evens;
+    logc('DISTILLATION: Filtered to even positions', 'success');
+  },
+  
+  coagulation: () => {
+    saveSVG();
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SEED BRUSH (User Circles)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function addUserCircle(x, y, r = 100) {
+  const c = svg('circle');
+  c.setAttribute('cx', x);
+  c.setAttribute('cy', y);
+  c.setAttribute('r', r);
+  c.setAttribute('class', 'user-circle breathing');
+  els.userCircleLayer.appendChild(c);
+  state.userCircles.push({ x, y, r, el: c });
+  logc(`Seed circle spawned at (${x.toFixed(0)}, ${y.toFixed(0)})`, 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COLOR SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateColors() {
+  document.documentElement.style.setProperty('--gold', els.colorGold.value);
+  document.documentElement.style.setProperty('--rose', els.colorRose.value);
+  document.documentElement.style.setProperty('--hl', els.colorHl.value);
+  logc(`Tinctures updated: gold=${els.colorGold.value}`, 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SVG EXPORT
+// ═══════════════════════════════════════════════════════════════════════════
+
+function saveSVG() {
+  const clone = els.scene.cloneNode(true);
+  const serializer = new XMLSerializer();
+  const svgText = serializer.serializeToString(clone);
+  const blob = new Blob([svgText], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'alchemest-sigil.svg';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  logc('COAGULATION complete → SVG saved.', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOOL SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TOOL_INFO = {
+  move: 'Drag to rotate the wheel',
+  seedBrush: 'Click canvas to spawn circles',
+  chordPen: 'Click first node, then second to connect',
+  partition: 'Click nodes to cycle A→B→C→none',
+  symmetry: 'Click to reflect existing user chords',
+  color: 'Use color pickers in Grimoire panel',
+  measure: 'Click first node, then second to measure'
+};
+
+function setActiveTool(tool) {
+  state.activeTool = tool;
+  state.chordStart = null;
+  state.measureStart = null;
+  
+  document.querySelectorAll('.instrument').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tool === tool);
+  });
+  
+  els.whisper.textContent = TOOL_INFO[tool] || 'Tool active';
+  
+  // Update cursor
+  const cursors = {
+    move: 'grab',
+    seedBrush: 'crosshair',
+    chordPen: 'pointer',
+    partition: 'pointer',
+    symmetry: 'pointer',
+    color: 'default',
+    measure: 'help'
+  };
+  els.scene.style.cursor = cursors[tool] || 'crosshair';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INCANTATION PARSER
+// ═══════════════════════════════════════════════════════════════════════════
+
+function castIncantation(text) {
+  const t = text.trim().toUpperCase();
+  const parts = t.split(/\s+/);
+  const cmd = parts[0];
+  
+  if (cmd === 'SUMMON') {
+    const name = parts[1] || 'BLUE60';
+    const key = Object.keys(SEQS).find(k => k.toUpperCase() === name);
+    if (key) { els.seqSel.value = key; renderDigits(); }
+    else logc(`Unknown sequence: ${name}`, 'error');
+    return;
+  }
+  
+  if (cmd === 'STYLE') {
+    const st = (parts[1] || 'NUMERIC').toLowerCase();
+    if (GLYPHERS[st]) { els.numeralStyle.value = st; renderDigits(); }
+    else logc(`Unknown style: ${st}`, 'error');
+    return;
+  }
+  
+  if (cmd === 'WEAVE') {
+    const pattern = (parts[1] || 'NONE').toLowerCase();
+    const options = ['none', 'triangle', 'square', 'pentagon', 'hexagon', 'star5', 'star6', 'fibonacci', 'golden'];
+    if (options.includes(pattern)) {
+      els.chordPreset.value = pattern;
+      manifestChords();
+    } else {
+      logc(`Unknown pattern: ${pattern}. Try: ${options.join(', ')}`, 'error');
+    }
+    return;
+  }
+  
+  if (cmd === 'PARTITION') {
+    applyPartitions();
+    return;
+  }
+  
+  if (cmd === 'ROTATE') {
+    const deg = parseFloat(parts[1]) || 0;
+    rotationDeg += deg;
+    applyRotation();
+    logc(`Rotated ${deg}°`, 'success');
+    return;
+  }
+  
+  if (cmd === 'MEASURE') {
+    const i = parseInt(parts[1]);
+    const j = parseInt(parts[2]);
+    if (!isNaN(i) && !isNaN(j)) {
+      showMeasurement(i, j);
+    } else {
+      logc('Usage: MEASURE <index1> <index2>', 'error');
+    }
+    return;
+  }
+  
+  if (cmd === 'CLEAR') {
+    const target = (parts[1] || '').toLowerCase();
+    if (target === 'chords') { clearChords(); logc('Chords cleared.'); }
+    else if (target === 'circles') { clearUserCircles(); logc('User circles cleared.'); }
+    else if (target === 'measure') { clearMeasure(); logc('Measurements cleared.'); }
+    else if (target === 'groups') { handleClearGroups(); }
+    else logc('CLEAR what? (chords/circles/measure/groups)', 'error');
+    return;
+  }
+  
+  if (cmd === 'HELP') {
+    els.helpModal.classList.add('visible');
+    return;
+  }
+  
+  logc(`Unknown incantation: ${t}`, 'error');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROTATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+function applyRotation() {
+  els.digitLayer.style.transform = `rotate(${rotationDeg}deg)`;
+  els.chordLayer.style.transform = `rotate(${rotationDeg}deg)`;
+  els.userCircleLayer.style.transform = `rotate(${rotationDeg}deg)`;
+  refreshNumericGlyphOrientation();
+}
+
+function applyRotationOnce() {
+  applyRotation();
+  rafId = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Control panel events
+els.seqSel.addEventListener('change', renderDigits);
+els.countSel.addEventListener('change', renderDigits);
+els.numeralStyle.addEventListener('change', renderDigits);
+els.geometryType.addEventListener('change', renderGeometry);
+els.showGeometry.addEventListener('change', renderGeometry);
+els.applyPartitions.addEventListener('click', applyPartitions);
+els.clearGroups.addEventListener('click', handleClearGroups);
+els.applyChords.addEventListener('click', manifestChords);
+els.clearChords.addEventListener('click', () => { clearChords(); logc('Chords cleared.'); });
+els.coagulate.addEventListener('click', saveSVG);
+els.colorGold.addEventListener('input', updateColors);
+els.colorRose.addEventListener('input', updateColors);
+els.colorHl.addEventListener('input', updateColors);
+
+// Help modal
+els.helpBtn.addEventListener('click', () => els.helpModal.classList.add('visible'));
+els.closeHelp.addEventListener('click', () => els.helpModal.classList.remove('visible'));
+els.helpModal.addEventListener('click', (e) => {
+  if (e.target === els.helpModal) els.helpModal.classList.remove('visible');
+});
+
+// Instrument toolbar
+document.querySelectorAll('.instrument').forEach(btn => {
+  btn.addEventListener('click', () => setActiveTool(btn.dataset.tool));
+});
+
+// Seven Operations
+document.querySelectorAll('.operation').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const op = btn.dataset.op;
+    if (OPERATIONS[op]) {
+      document.querySelectorAll('.operation').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      OPERATIONS[op]();
+    }
+  });
+});
+
+// Incantation input
+els.hermesQuill.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    castIncantation(els.hermesQuill.value);
+    els.hermesQuill.value = '';
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  
+  const shortcuts = {
+    'v': 'move', 'b': 'seedBrush', 'c': 'chordPen',
+    'p': 'partition', 'y': 'symmetry', 'a': 'color', 'r': 'measure'
+  };
+  if (shortcuts[e.key.toLowerCase()]) {
+    setActiveTool(shortcuts[e.key.toLowerCase()]);
+  }
+  if (e.key === 'Escape') {
+    state.chordStart = null;
+    state.measureStart = null;
+    clearMeasure();
+    els.helpModal.classList.remove('visible');
+  }
+});
+
+// Canvas interaction
+els.scene.addEventListener('pointerdown', (e) => {
+  const [x, y] = getSVGPoint(e);
+  
+  if (state.activeTool === 'move') {
+    e.preventDefault();
+    rotating = true;
+    els.scene.setPointerCapture(e.pointerId);
+    els.scene.style.cursor = 'grabbing';
+    const rect = els.scene.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    lastAngleRad = Math.atan2(e.clientY - cy, e.clientX - cx);
+    return;
+  }
+  
+  if (state.activeTool === 'seedBrush') {
+    addUserCircle(x, y, 100 + Math.random() * 50);
+    return;
+  }
+  
+  if (state.activeTool === 'chordPen') {
+    const idx = findNearestNode(x, y);
+    if (idx !== null) {
+      if (state.chordStart === null) {
+        state.chordStart = idx;
+        state.nodes[idx].el.classList.add('selected');
+        logc(`Chord start: node ${idx}`, 'info');
+      } else {
+        addUserChord(state.chordStart, idx);
+        state.nodes[state.chordStart].el.classList.remove('selected');
+        logc(`Chord drawn: ${state.chordStart} → ${idx}`, 'success');
+        state.chordStart = null;
+      }
+    }
+    return;
+  }
+  
+  if (state.activeTool === 'partition') {
+    const idx = findNearestNode(x, y);
+    if (idx !== null) {
+      cycleNodePartition(idx);
+    }
+    return;
+  }
+  
+  if (state.activeTool === 'symmetry') {
+    reflectChords();
+    return;
+  }
+  
+  if (state.activeTool === 'measure') {
+    const idx = findNearestNode(x, y);
+    if (idx !== null) {
+      if (state.measureStart === null) {
+        state.measureStart = idx;
+        state.nodes[idx].el.classList.add('selected');
+        logc(`Measure start: node ${idx}`, 'info');
+      } else {
+        showMeasurement(state.measureStart, idx);
+        state.nodes[state.measureStart].el.classList.remove('selected');
+        state.measureStart = null;
+      }
+    }
+    return;
+  }
+});
+
+els.scene.addEventListener('pointerup', (e) => {
+  if (!rotating) return;
+  rotating = false;
+  els.scene.style.cursor = 'grab';
+  try { els.scene.releasePointerCapture(e.pointerId); } catch (_) {}
+});
+
+els.scene.addEventListener('pointercancel', () => { rotating = false; });
+
+els.scene.addEventListener('pointermove', (e) => {
+  if (!rotating) return;
+  const rect = els.scene.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const ang = Math.atan2(e.clientY - cy, e.clientX - cx);
+  const deltaDeg = (ang - lastAngleRad) * 180 / Math.PI;
+  lastAngleRad = ang;
+  rotationDeg += deltaDeg;
+  if (rafId === null) rafId = requestAnimationFrame(applyRotationOnce);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+renderGeometry();
+renderDigits();
+setActiveTool('move');
+logc('All instruments calibrated. Type HELP for incantations.', 'info');
+</script>
+</body>
+</html>
