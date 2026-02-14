@@ -21,6 +21,12 @@
 - **Black60**: Latent traits (evolution paths, rare abilities)
 - Privacy-first: only genome hashes stored, never raw genome
 
+✅ **Interactive Conscious Jewble Hub (7 Items)**
+- Place conscious mini-objects (like a **leaf Jewble** or **ball Jewble**) that carry their own DNA-hash-linked behavior profile.
+- Your Meta-Pet can actively interact with each Jewble for play, bonding, exploration, and self-soothing loops.
+- Add tone inputs so Jewbles can express sound and mood (chimes, pulses, rhythmic cues) during interaction.
+- Trait state + Jewble type + tone pattern together create rich, emergent behavior moments beyond visuals alone.
+
 ✅ **Visual Pet Sprite**
 - SVG-based rendering driven by genome traits
 - Reflects body type, colors, patterns, and special features
