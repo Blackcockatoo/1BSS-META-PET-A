@@ -1766,7 +1766,7 @@ export default function Home() {
                   <h2 className="text-lg font-bold text-white">Sacred Geometry &amp; Sound</h2>
                   <p className="text-xs text-zinc-400">Experience DNA as living geometry, music, and light</p>
                   <p className="text-[11px] text-zinc-500 mt-1">
-                    Includes ALCHEMEST Studio for advanced manual sigil work plus MOSS60 integrity signatures using the same base-60 sequence family.
+                    Includes ALCHEMEST Studio for advanced manual sigil work using the same base-60 sequence family.
                   </p>
                 </div>
               </div>
@@ -1783,7 +1783,7 @@ export default function Home() {
                   rel="noreferrer"
                   className="px-4 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-200 text-sm font-medium hover:bg-cyan-500/30 hover:border-cyan-400 transition-colors touch-manipulation"
                 >
-                  Open ALCHEMEST + Security
+                  Open ALCHEMEST Studio
                 </Link>
               </div>
             </div>
