@@ -134,6 +134,14 @@ Visit `http://localhost:3000`
 
 ---
 
+## Curriculum OS Docs (School Pilot)
+
+- Consolidated map: `docs/curriculum-os/README.md`
+- 7-session cards: `docs/curriculum-os/session-cards.md`
+- ICT/leadership audit checklist: `docs/curriculum-os/ict-leadership-audit-sheet.md`
+
+---
+
 ## What Works
 
 ### 1. Identity (Crest)
