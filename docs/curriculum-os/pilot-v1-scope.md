@@ -89,6 +89,28 @@ Run these checks and store evidence in the pilot folder:
    - Demonstrate self-check + provide DevTools/firewall verification flow.
    - Pass if ICT confirms no required outbound network dependency.
 
+## Run + debug + test + screenshot evidence standard
+Every pilot candidate build must include a single evidence bundle with four artifacts:
+
+1. **Run evidence**
+   - Command used to launch: `npm run dev`.
+   - Record app URL, launch timestamp, and device profile.
+
+2. **Debug evidence**
+   - Record any warnings/errors observed during launch/session.
+   - For each issue: symptom, reproduction step, resolution, retest result.
+
+3. **Test evidence**
+   - Attach completed test protocol results (run counts + pass/fail).
+   - Include command outputs for lint/test checks.
+
+4. **Screenshot evidence**
+   - Capture at minimum:
+     - Classroom Mode active state
+     - `Offline Verified` visible state
+     - End Session confirmation state
+   - Save files with timestamp and device label.
+
 ## Acceptance evidence required
 - Test notes for launch/session/restart on at least one low-spec device profile.
 - Screenshot of `Offline Verified` state.

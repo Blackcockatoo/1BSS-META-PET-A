@@ -83,3 +83,16 @@ Complete after dry-run or live session block:
 
 **Sign-off fields:** date, operator, device profile, pass/fail, escalation required (Y/N).
 
+## 9. Evidence capture template (run/debug/test/screenshot)
+Fill this immediately after execution:
+
+| Field | Entry |
+|---|---|
+| Run command + URL | |
+| Device/profile | |
+| Start time / End time | |
+| Debug notes (issues + fixes) | |
+| Test results summary | |
+| Screenshot file names | |
+| Operator sign-off | |
+
