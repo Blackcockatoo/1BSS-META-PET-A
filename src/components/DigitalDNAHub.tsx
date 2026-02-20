@@ -469,12 +469,23 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     const pl3 = new THREE.PointLight(0xff44cc, 0.9); pl3.position.set(0,   12, -12); scene.add(pl3);
 
     // Build helix geometry from the seed sequence.
-    // One shared MeshPhongMaterial per digit value (0-9) so we can animate
-    // emissiveIntensity on just 10 objects per frame instead of 420+.
+    //
+    // Visual structure (mirrors real DNA visualisations):
+    //   • Backbone — one consistent glowing colour per strand, running
+    //     along the length of the helix. Keeps each strand readable.
+    //   • Base-pair cross-bridges — coloured by digit (ASMR palette),
+    //     drawn between adjacent strands every few nodes. These are the
+    //     "rungs" of the ladder and the source of vivid colour variety.
+    //   • Nodes (spheres) — coloured + glowing per digit, animated emissive.
+    //
+    // One shared MeshPhongMaterial per digit (0-9) keeps per-frame updates
+    // to 10 material changes instead of 420+.
+
     const sequence = getSequence();
     const group    = new THREE.Group();
     const spheres: THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhongMaterial>[] = [];
 
+    // Node materials — one per digit, animated each frame
     const sharedMats = Array.from({ length: 10 }, (_, d) =>
       new THREE.MeshPhongMaterial({
         color:             new THREE.Color(digitToAsmrColor(d)),
@@ -485,47 +496,79 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
       })
     );
 
+    // Backbone colours — one distinct glowing colour per strand
+    const STRAND_COLS = [0x44ddff, 0xff6699, 0x88ff55, 0xffcc22, 0xcc88ff, 0x22ffcc, 0xff8844, 0x4488ff, 0xff44cc, 0x88ffdd];
+    // One backbone material per strand (reused for every segment on that strand)
+    const backboneMats = Array.from({ length: harmony }, (_, h) =>
+      new THREE.LineBasicMaterial({ color: STRAND_COLS[h % STRAND_COLS.length], opacity: 0.75, transparent: true })
+    );
+    // One bridge material per digit (coloured base-pair rungs)
+    const bridgeMats = Array.from({ length: 10 }, (_, d) =>
+      new THREE.LineBasicMaterial({ color: new THREE.Color(digitToAsmrColor(d)), opacity: 0.9, transparent: true })
+    );
+
+    // Build each strand and record world-space node positions for bridges
+    const helixPositions: THREE.Vector3[][] = [];
+
     for (let helix = 0; helix < harmony; helix++) {
       const helixGroup  = new THREE.Group();
       const angleOffset = (helix * Math.PI * 2) / harmony;
+      const positions: THREE.Vector3[] = [];
 
       for (let i = 0; i < sequence.length; i++) {
         const digit  = sequence[i];
         const t      = i / 9;
         const radius = 3 + (digit / 10) * 2.4;
         const angle  = angleOffset + t * Math.PI * 0.58;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-        const z = t - 10;
+        const pos    = new THREE.Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, t - 10);
+        positions.push(pos);
 
         const geo    = new THREE.SphereGeometry(0.18 + digit * 0.022, 16, 16);
         const sphere = new THREE.Mesh(geo, sharedMats[digit]);
-        sphere.position.set(x, y, z);
+        sphere.position.copy(pos);
         sphere.userData = { digit, index: i };
         spheres.push(sphere);
         helixGroup.add(sphere);
 
-        // Connector line — brighter, uses the digit colour
+        // Backbone segment — consistent strand colour, NOT per-digit
         if (i > 0) {
-          const pa = angleOffset + ((i - 1) / 9) * Math.PI * 0.58;
-          const pr = 3 + (sequence[i - 1] / 10) * 2.4;
-          const lineGeo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(Math.cos(pa) * pr, Math.sin(pa) * pr, (i - 1) / 9 - 10),
-            new THREE.Vector3(x, y, z),
-          ]);
-          helixGroup.add(new THREE.Line(
-            lineGeo,
-            new THREE.LineBasicMaterial({
-              color:       new THREE.Color(digitToAsmrColor(digit)),
-              opacity:     0.55,
-              transparent: true,
-            }),
-          ));
+          const lineGeo = new THREE.BufferGeometry().setFromPoints([positions[i - 1], pos]);
+          helixGroup.add(new THREE.Line(lineGeo, backboneMats[helix]));
         }
       }
+
+      helixPositions.push(positions);
       group.add(helixGroup);
     }
+
+    // Cross-bridges between adjacent strands — these are the coloured "rungs"
+    const bridgeStep = Math.max(2, Math.floor(sequence.length / 14));
+    for (let h = 0; h < harmony; h++) {
+      const next = (h + 1) % harmony;
+      for (let i = 0; i < sequence.length; i += bridgeStep) {
+        const a = helixPositions[h][i];
+        const b = helixPositions[next][i];
+        if (!a || !b) continue;
+        const bridgeGeo = new THREE.BufferGeometry().setFromPoints([a, b]);
+        group.add(new THREE.Line(bridgeGeo, bridgeMats[sequence[i]]));
+      }
+    }
+
     scene.add(group);
+
+    // Starfield — fills the dark void around the helix
+    const starCount = 700;
+    const starPos   = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      starPos[i * 3]     = (Math.random() - 0.5) * 90;
+      starPos[i * 3 + 1] = (Math.random() - 0.5) * 90;
+      starPos[i * 3 + 2] = (Math.random() - 0.5) * 90;
+    }
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.09, sizeAttenuation: true });
+    const stars   = new THREE.Points(starGeo, starMat);
+    scene.add(stars);
 
     // ── Responsive resize ─────────────────────────────────────────────────
     const resize = () => {
@@ -679,6 +722,11 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         // Materials are shared; disposed below
       });
       sharedMats.forEach((m) => m.dispose());
+      backboneMats.forEach((m) => m.dispose());
+      bridgeMats.forEach((m) => m.dispose());
+      scene.remove(stars);
+      starGeo.dispose();
+      starMat.dispose();
       renderer.dispose();
     };
   }, [activeMode, selectedSeed, harmony, getSequence, playChord, ensureAudio, registerInteraction, pulseHaptic]);
