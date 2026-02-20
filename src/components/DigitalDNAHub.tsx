@@ -462,15 +462,28 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     // the parent container to 0 height before JS sets explicit dimensions.
     canvas.style.display = 'block';
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const pl1 = new THREE.PointLight(0xffd700, 1.6); pl1.position.set(10,  10,  10); scene.add(pl1);
-    const pl2 = new THREE.PointLight(0x44aaff, 1.0); pl2.position.set(-10, -10,  8); scene.add(pl2);
+    // Lighting — three-point rig for vivid colour separation
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const pl1 = new THREE.PointLight(0xffd700, 2.2); pl1.position.set(10,  10,  10); scene.add(pl1);
+    const pl2 = new THREE.PointLight(0x44aaff, 1.4); pl2.position.set(-10, -10,   8); scene.add(pl2);
+    const pl3 = new THREE.PointLight(0xff44cc, 0.9); pl3.position.set(0,   12, -12); scene.add(pl3);
 
-    // Build helix geometry from the seed sequence
+    // Build helix geometry from the seed sequence.
+    // One shared MeshPhongMaterial per digit value (0-9) so we can animate
+    // emissiveIntensity on just 10 objects per frame instead of 420+.
     const sequence = getSequence();
     const group    = new THREE.Group();
     const spheres: THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhongMaterial>[] = [];
+
+    const sharedMats = Array.from({ length: 10 }, (_, d) =>
+      new THREE.MeshPhongMaterial({
+        color:             new THREE.Color(digitToAsmrColor(d)),
+        emissive:          new THREE.Color(digitToAsmrColor(d)),
+        emissiveIntensity: 0.6,
+        shininess:         140,
+        specular:          new THREE.Color(0xffffff),
+      })
+    );
 
     for (let helix = 0; helix < harmony; helix++) {
       const helixGroup  = new THREE.Group();
@@ -485,20 +498,14 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         const y = Math.sin(angle) * radius;
         const z = t - 10;
 
-        const geo = new THREE.SphereGeometry(0.15 + digit * 0.018, 14, 14);
-        const mat = new THREE.MeshPhongMaterial({
-          color:             new THREE.Color(digitToColor(digit)),
-          emissive:          new THREE.Color(digitToColor(digit)),
-          emissiveIntensity: 0.45,
-          shininess:         100,
-        });
-        const sphere = new THREE.Mesh(geo, mat);
+        const geo    = new THREE.SphereGeometry(0.18 + digit * 0.022, 16, 16);
+        const sphere = new THREE.Mesh(geo, sharedMats[digit]);
         sphere.position.set(x, y, z);
         sphere.userData = { digit, index: i };
         spheres.push(sphere);
         helixGroup.add(sphere);
 
-        // Connector line to the previous node
+        // Connector line — brighter, uses the digit colour
         if (i > 0) {
           const pa = angleOffset + ((i - 1) / 9) * Math.PI * 0.58;
           const pr = 3 + (sequence[i - 1] / 10) * 2.4;
@@ -508,7 +515,11 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
           ]);
           helixGroup.add(new THREE.Line(
             lineGeo,
-            new THREE.LineBasicMaterial({ color: 0x6688aa, opacity: 0.35, transparent: true }),
+            new THREE.LineBasicMaterial({
+              color:       new THREE.Color(digitToAsmrColor(digit)),
+              opacity:     0.55,
+              transparent: true,
+            }),
           ));
         }
       }
@@ -632,12 +643,21 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     const animate = () => {
       animId = requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
+
       rotX += (targetRotX - rotX) * 0.08;
       rotY += (targetRotY - rotY) * 0.08;
       group.rotation.y = t * 0.22 + rotY;
       group.rotation.x = Math.sin(t * 0.7) * 0.08 + rotX;
+
+      // Group-level breathe pulse
       const pulse = 1 + Math.sin(t * 2.2) * 0.05;
       group.scale.set(pulse, pulse, pulse);
+
+      // Per-digit emissive ripple — only 10 material updates per frame
+      sharedMats.forEach((mat, d) => {
+        mat.emissiveIntensity = 0.55 + Math.sin(t * 1.9 + d * 0.72) * 0.38;
+      });
+
       renderer.render(scene, camera);
     };
     animate();
@@ -654,14 +674,11 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
       canvas.removeEventListener('wheel',         onWheel);
       scene.remove(group);
       group.traverse((obj) => {
-        const o = obj as THREE.Object3D & {
-          geometry?: THREE.BufferGeometry;
-          material?: THREE.Material | THREE.Material[];
-        };
+        const o = obj as THREE.Object3D & { geometry?: THREE.BufferGeometry };
         o.geometry?.dispose();
-        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
-        else o.material?.dispose();
+        // Materials are shared; disposed below
       });
+      sharedMats.forEach((m) => m.dispose());
       renderer.dispose();
     };
   }, [activeMode, selectedSeed, harmony, getSequence, playChord, ensureAudio, registerInteraction, pulseHaptic]);
@@ -758,17 +775,19 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     let animId = 0;
     const draw = () => {
       animId = requestAnimationFrame(draw);
-      const rs = Math.max(24, Math.min(W, H) / 11);
+      const now = performance.now() * 0.001; // seconds — drives all animations
+      const rs  = Math.max(24, Math.min(W, H) / 11);
       const seg = harmony * 12;
 
-      // Background gradient
-      const bg = ctx.createRadialGradient(cx, cy, rs * 0.5, cx, cy, W * 0.55);
-      bg.addColorStop(0, '#10143a');
-      bg.addColorStop(1, '#070b1e');
+      // Deep background — vibrant purple centre fading to near-black
+      const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.62);
+      bg.addColorStop(0,   '#1e1060');
+      bg.addColorStop(0.4, '#0e0d38');
+      bg.addColorStop(1,   '#050818');
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, W, H);
 
-      // DNA ring dots
+      // DNA ring dots — two-pass bloom + time-animated size
       for (let ring = 0; ring < 7; ring++) {
         const r = (ring + 1) * rs;
         for (let i = 0; i < seg; i++) {
@@ -776,35 +795,54 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
           const digit = sequence[(ring * seg + i) % sequence.length];
           const nx    = cx + Math.cos(a) * r;
           const ny    = cy + Math.sin(a) * r;
+          const color = digitToAsmrColor(digit);
+
+          // Animated size — each ring and position pulses at its own phase
+          const base   = 2.6 + digit * 0.5;
+          const sz     = base + Math.sin(now * 1.7 + ring * 0.65 + i * 0.09) * 0.9;
+
+          // Halo pass — large dim bloom
           ctx.beginPath();
-          ctx.arc(nx, ny, 2.2 + digit * 0.45, 0, Math.PI * 2);
-          ctx.fillStyle   = digitToColor(digit);
-          ctx.shadowBlur  = 10;
-          ctx.shadowColor = digitToColor(digit);
+          ctx.arc(nx, ny, sz * 2.8, 0, Math.PI * 2);
+          ctx.fillStyle = `${color}1a`; // ~10% opacity
+          ctx.fill();
+
+          // Core pass — vivid + glow
+          ctx.beginPath();
+          ctx.arc(nx, ny, sz, 0, Math.PI * 2);
+          ctx.fillStyle   = color;
+          ctx.shadowBlur  = 18;
+          ctx.shadowColor = color;
           ctx.fill();
           ctx.shadowBlur = 0;
         }
       }
 
-      // Symmetry guide lines
-      ctx.strokeStyle = 'rgba(255,215,0,0.32)';
-      ctx.lineWidth   = 1.5;
+      // Symmetry guide lines — animated opacity, ice-blue tint
+      ctx.lineWidth = 1.3;
       for (let i = 0; i < harmony; i++) {
-        const a1 = (i / harmony) * Math.PI * 2 - Math.PI / 2;
-        const a2 = ((i + Math.max(2, Math.floor(harmony / 3))) / harmony) * Math.PI * 2 - Math.PI / 2;
+        const a1    = (i / harmony) * Math.PI * 2 - Math.PI / 2;
+        const a2    = ((i + Math.max(2, Math.floor(harmony / 3))) / harmony) * Math.PI * 2 - Math.PI / 2;
+        const alpha = (0.22 + Math.sin(now * 0.7 + i * 0.55) * 0.14).toFixed(2);
+        ctx.strokeStyle = `rgba(160,220,255,${alpha})`;
         ctx.beginPath();
         ctx.moveTo(cx + Math.cos(a1) * rs * 1.6, cy + Math.sin(a1) * rs * 1.6);
         ctx.lineTo(cx + Math.cos(a2) * rs * 1.6, cy + Math.sin(a2) * rs * 1.6);
         ctx.stroke();
       }
 
-      // User paint points (gold glow)
+      // User paint points — ASMR palette cycling, with glow
       paintedPatternRef.current.forEach((pt, idx) => {
-        const alpha = 0.25 + (idx % harmony) / (harmony * 2);
+        const color    = digitToAsmrColor(idx % 10);
+        const alpha    = 0.5 + (idx % harmony) / (harmony * 1.4);
+        const hexAlpha = Math.floor(Math.min(alpha, 1) * 255).toString(16).padStart(2, '0');
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 3.2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,215,120,${alpha.toFixed(2)})`;
+        ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle   = `${color}${hexAlpha}`;
+        ctx.shadowBlur  = 14;
+        ctx.shadowColor = color;
         ctx.fill();
+        ctx.shadowBlur = 0;
       });
     };
     draw();
