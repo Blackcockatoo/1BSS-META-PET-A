@@ -145,6 +145,7 @@ Visit `http://localhost:3000`
 - Consolidated map: `docs/curriculum-os/README.md`
 - 7-session cards: `docs/curriculum-os/session-cards.md`
 - ICT/leadership audit checklist: `docs/curriculum-os/ict-leadership-audit-sheet.md`
+- 7-day execution checklists: `docs/curriculum-os/7-day-sprint-checklists.md`
 
 ---
 
