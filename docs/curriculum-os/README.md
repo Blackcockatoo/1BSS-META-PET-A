@@ -92,6 +92,7 @@ This avoids product fragmentation: one core system, different audience framing.
 - parent communication templates
 - leadership summary ("gift, not pitch" tone)
 - rollout Q&A snippets
+- 7-day execution checklists for operational lanes
 
 ---
 
