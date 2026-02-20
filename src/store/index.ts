@@ -696,8 +696,7 @@ export function createMetaPetWebStore(
           lastPlayedAt: Date.now(),
         };
 
-        let achievements = state.achievements;
-
+        const achievements = state.achievements;
 
         const update: Partial<MetaPetState> = { miniGames: next };
         if (achievements !== state.achievements) {
