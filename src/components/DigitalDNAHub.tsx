@@ -836,14 +836,16 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     const ripples: Ripple[] = [];
 
     const rebuildParticles = () => {
-      const count = clamp(Math.round((W * H) / 5200), 90, 220);
+      const count = clamp(Math.round((W * H) / 4800), 100, 240);
       particlesRef.current = Array.from({ length: count }, (_, i) => {
         const digit = sequence[i % sequence.length];
         return {
           x: Math.random() * W, y: Math.random() * H,
           vx: (Math.random() - 0.5) * 1.2, vy: (Math.random() - 0.5) * 1.2,
-          digit, color: digitToColor(digit),
-          size: 1.8 + digit * 0.36, mass: digit + 1,
+          // Use the bright ASMR palette — the main COLORS palette is too dark
+          // (entries 0-3 are near-black, invisible on a dark canvas)
+          digit, color: digitToAsmrColor(digit),
+          size: 2.2 + digit * 0.38, mass: digit + 1,
         };
       });
     };
@@ -866,23 +868,27 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     if (canvas.parentElement) ro.observe(canvas.parentElement);
     window.addEventListener('resize', resize);
 
-    const spawnRipple = (x: number, y: number, intensity = 1) => {
+    /** Spawn a coloured ripple ring — colour is driven by the DNA digit at that point. */
+    const spawnRipple = (x: number, y: number, digit: number, intensity = 1) => {
       ripples.push({
         x, y,
         radius: 6, speed: 1.8 + intensity * 0.9,
-        alpha: 0.7, color: 'rgba(120,220,255,1)', lineWidth: 2.2,
+        alpha: 0.82, color: digitToAsmrColor(digit), lineWidth: 2.4,
       });
     };
 
+    const digitAt = (x: number) =>
+      sequence[Math.floor((x / Math.max(1, W)) * sequence.length) % sequence.length];
+
     const onDown = (e: PointerEvent) => {
       e.preventDefault();
-      const pt = localPointFromEvent(canvas, e);
+      const pt    = localPointFromEvent(canvas, e);
+      const digit = digitAt(pt.x);
       canvas.setPointerCapture(e.pointerId);
       pointers.set(e.pointerId, { ...pt, strength: Math.max(0.3, e.pressure || 0.8) });
-      const digit = sequence[Math.floor((pt.x / Math.max(1, W)) * sequence.length) % sequence.length];
       void ensureAudio().then(() => playChord([digit]));
       pulseHaptic(9);
-      spawnRipple(pt.x, pt.y, 1.2);
+      spawnRipple(pt.x, pt.y, digit, 1.4);
       registerInteraction(true);
     };
     const onMove = (e: PointerEvent) => {
@@ -895,8 +901,9 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
       registerInteraction();
     };
     const onUp = (e: PointerEvent) => {
-      const upPt = localPointFromEvent(canvas, e);
-      spawnRipple(upPt.x, upPt.y, 0.8);
+      const upPt  = localPointFromEvent(canvas, e);
+      const digit = digitAt(upPt.x);
+      spawnRipple(upPt.x, upPt.y, digit, 0.9);
       pointers.delete(e.pointerId);
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
     };
@@ -914,47 +921,71 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     let animId = 0;
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      ctx.fillStyle = 'rgba(10,14,39,0.14)';
+
+      // Lower alpha → longer ghost trails (0.07 keeps ~93% of previous frame)
+      ctx.fillStyle = 'rgba(8,11,28,0.07)';
       ctx.fillRect(0, 0, W, H);
 
-      const t          = performance.now() * 0.001;
+      const t = performance.now() * 0.001;
+
+      // Lemniscate (figure-8) idle attractor — more organic than a plain circle
+      const idleSin = Math.sin(t * 0.38);
       const attractors = pointers.size
         ? Array.from(pointers.values())
-        : [{ x: W / 2 + Math.cos(t * 0.7) * W * 0.22, y: H / 2 + Math.sin(t * 0.9) * H * 0.22, strength: 0.35 }];
+        : [{
+            x: W / 2 + Math.sin(t * 0.38) * W * 0.26,
+            y: H / 2 + Math.sin(t * 0.76) * H * 0.20 * idleSin,
+            strength: 0.38,
+          }];
 
+      // ── Physics + draw particles ────────────────────────────────────────
       for (const p of particlesRef.current) {
         for (const a of attractors) {
           const dx = a.x - p.x, dy = a.y - p.y;
           const dist = Math.hypot(dx, dy);
-          if (dist < 260) {
+          if (dist < 280) {
             const sd    = Math.max(dist, 0.0001);
-            const force = ((260 - dist) / 260) * 0.085 * a.strength * (0.5 + consciousness / 100);
+            const force = ((280 - dist) / 280) * 0.088 * a.strength * (0.5 + consciousness / 100);
             p.vx += (dx / sd) * force / p.mass;
             p.vy += (dy / sd) * force / p.mass;
           }
         }
+
+        // Gentle centering drift so particles never cluster at edges forever
+        p.vx += (W / 2 - p.x) * 0.00008;
+        p.vy += (H / 2 - p.y) * 0.00008;
+
         p.x += p.vx; p.y += p.vy;
-        p.vx *= 0.985; p.vy *= 0.985;
-        if (p.x < 0 || p.x > W) p.vx *= -0.9;
-        if (p.y < 0 || p.y > H) p.vy *= -0.9;
+        p.vx *= 0.983; p.vy *= 0.983;
+        if (p.x < 0 || p.x > W) p.vx *= -0.88;
+        if (p.y < 0 || p.y > H) p.vy *= -0.88;
         p.x = clamp(p.x, 0, W); p.y = clamp(p.y, 0, H);
+
+        // Core glow — two-pass bloom: large dim halo + bright centre
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 2.2, 0, Math.PI * 2);
+        ctx.fillStyle   = `${p.color}28`; // 16% opacity halo
+        ctx.fill();
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fillStyle   = p.color;
-        ctx.shadowBlur  = 8;
+        ctx.shadowBlur  = 14;
         ctx.shadowColor = p.color;
         ctx.fill();
         ctx.shadowBlur = 0;
       }
 
-      // Constellation lines between nearby particles
-      ctx.strokeStyle = 'rgba(255,215,150,0.12)';
-      ctx.lineWidth   = 1;
-      const pts = particlesRef.current;
+      // ── Constellation lines — alpha fades with distance ─────────────────
+      const pts       = particlesRef.current;
+      const LINE_DIST = 115;
+      ctx.lineWidth = 0.9;
       for (let i = 0; i < pts.length; i++) {
         for (let j = i + 1; j < pts.length; j++) {
-          if (Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y) < 90) {
+          const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+          if (d < LINE_DIST) {
+            const alpha = ((1 - d / LINE_DIST) * 0.55).toFixed(2);
+            ctx.strokeStyle = `rgba(180,220,255,${alpha})`;
             ctx.beginPath();
             ctx.moveTo(pts[i].x, pts[i].y);
             ctx.lineTo(pts[j].x, pts[j].y);
@@ -963,16 +994,20 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         }
       }
 
-      // Ripple rings
+      // ── Coloured ripple rings ───────────────────────────────────────────
       for (let i = ripples.length - 1; i >= 0; i--) {
         const r = ripples[i];
-        r.radius += r.speed; r.alpha -= 0.018; r.lineWidth *= 0.993;
+        r.radius += r.speed; r.alpha -= 0.016; r.lineWidth *= 0.993;
         if (r.alpha <= 0.02) { ripples.splice(i, 1); continue; }
+        const hexAlpha = Math.floor(r.alpha * 255).toString(16).padStart(2, '0');
         ctx.beginPath();
         ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = r.color.replace('1)', `${r.alpha.toFixed(2)})`);
+        ctx.strokeStyle = `${r.color}${hexAlpha}`;
         ctx.lineWidth   = r.lineWidth;
+        ctx.shadowBlur  = 10;
+        ctx.shadowColor = r.color;
         ctx.stroke();
+        ctx.shadowBlur = 0;
       }
     };
     animate();
@@ -1358,15 +1393,39 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                 <p className="text-cyan-300 text-sm sm:text-base">
                   Touch to pull constellations · multiple fingers create interference waves
                 </p>
-                <p className="text-slate-500 text-xs mt-1 italic">
-                  Teacher tip: raise Awareness to make particles respond more strongly to touch
-                </p>
               </div>
+
               <div className="flex justify-center" style={{ minHeight: '300px' }}>
                 <canvas
                   ref={surfaceCanvasRef}
                   className="rounded-xl shadow-2xl shadow-cyan-900/60 border border-cyan-700/30"
                 />
+              </div>
+
+              {/* Consciousness bar — right below the canvas for immediate access */}
+              <div className="mt-6 max-w-lg mx-auto">
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="consciousness-slider" className="text-sm font-semibold text-cyan-300">
+                    ✦ Consciousness
+                  </label>
+                  <span className="text-2xl font-bold text-cyan-400 font-mono tabular-nums">
+                    {consciousness}%
+                  </span>
+                </div>
+                <input
+                  id="consciousness-slider"
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={consciousness}
+                  onChange={(e) => setConsciousness(parseInt(e.target.value, 10))}
+                  className="w-full h-4 rounded-full appearance-none cursor-pointer bg-slate-700 accent-cyan-400"
+                />
+                <div className="flex justify-between text-[10px] text-slate-500 mt-1 px-0.5">
+                  <span>Calm drift</span>
+                  <span>Particles respond more strongly to touch →</span>
+                  <span>Full pull</span>
+                </div>
               </div>
             </div>
           )}
@@ -1700,10 +1759,18 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
             <div className="h-7 w-px bg-slate-700 hidden md:block" />
 
-            {/* Awareness display */}
+            {/* Consciousness slider — always accessible in the bottom bar */}
             <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm text-slate-400">Awareness</span>
-              <span className="text-cyan-400 font-bold font-mono">{consciousness}%</span>
+              <span className="text-xs sm:text-sm text-slate-400 shrink-0">✦ {consciousness}%</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={consciousness}
+                onChange={(e) => setConsciousness(parseInt(e.target.value, 10))}
+                title="Consciousness — particle attraction strength"
+                className="w-24 sm:w-32 h-2 rounded-full appearance-none cursor-pointer bg-slate-700 accent-cyan-400"
+              />
             </div>
 
             <div className="h-7 w-px bg-slate-700 hidden md:block" />
