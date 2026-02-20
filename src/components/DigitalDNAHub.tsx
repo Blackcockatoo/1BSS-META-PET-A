@@ -1,9 +1,31 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+/**
+ * DigitalDNAHub — Teacher & Student Interactive DNA Visualiser
+ *
+ * Six interactive modes that turn three sacred number sequences into
+ * geometry, colour and sound. Works with touch, stylus, trackpad and mouse.
+ *
+ * Mode overview (teacher reference):
+ *  spiral   – Three.js 3-D double-helix. Drag to rotate, pinch to zoom,
+ *             hover/tap glowing nodes to hear their note.
+ *  mandala  – 2-D paint canvas with rotational symmetry. Every stroke is
+ *             mirrored (harmony × times) and plays a tone.
+ *  particles– Physics particle field. Touch pulls constellations; multiple
+ *             simultaneous touch points create interference patterns.
+ *  asmr     – ASMMR flow canvas with a 4-phase learning ritual: ripple
+ *             attunement → sonic resonance → sustained glide → reflection.
+ *  sound    – Bar-chart piano. Tap any bar to play its DNA note, or play
+ *             the full sequence as a melody.
+ *  journey  – Guided step-by-step classroom setup that feeds all other modes.
+ */
+
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import * as THREE from 'three';
 import * as Tone from 'tone';
 import { useEducationStore } from '@/lib/education';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface LessonContext {
   lessonId: string;
@@ -13,492 +35,926 @@ export interface LessonContext {
 }
 
 type SeedKey = 'red' | 'black' | 'blue';
-type ModeKey = 'spiral' | 'mandala' | 'sound' | 'particles' | 'journey';
+type ModeKey = 'spiral' | 'mandala' | 'sound' | 'particles' | 'asmr' | 'journey';
 
-const DESKTOP_CANVAS_WIDTH = 800;
-const SPIRAL_CANVAS_HEIGHT = 600;
-const SQUARE_CANVAS_SIZE = 800;
-const MOBILE_BREAKPOINT = 768;
-
-interface PaintPoint {
-  x: number;
-  y: number;
-}
+interface PaintPoint { x: number; y: number }
 
 interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
+  x: number; y: number;
+  vx: number; vy: number;
   digit: number;
   color: string;
   size: number;
   mass: number;
 }
 
-type CanvasPointerEvent = PointerEvent | MouseEvent | TouchEvent;
+interface Ripple {
+  x: number; y: number;
+  radius: number;
+  speed: number;
+  alpha: number;
+  color: string;
+  lineWidth: number;
+}
 
+interface Spark {
+  x: number; y: number;
+  vx: number; vy: number;
+  size: number;
+  alpha: number;
+  color: string;
+}
+
+interface AsmmrRitualState {
+  rippleBursts: number;
+  toneBursts: number;
+  glideCount: number;
+  longestGlideMs: number;
+  completions: number;
+}
+
+interface AsmmrGoal {
+  id: 'ripple' | 'tone' | 'glide' | 'reflect';
+  title: string;
+  hint: string;
+  current: number;
+  target: number;
+  unit: string;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/**
+ * Three sacred number sequences — each encodes a unique DNA strand that
+ * drives every visual and sonic output in the hub.
+ */
 const SEEDS: Record<SeedKey, string> = {
-  red: '113031491493585389543778774590997079619617525721567332336510',
+  red:   '113031491493585389543778774590997079619617525721567332336510',
   black: '011235831459437077415617853819099875279651673033695493257291',
-  blue: '012776329785893036118967145479098334781325217074992143965631',
+  blue:  '012776329785893036118967145479098334781325217074992143965631',
 };
 
+/** Musical scale — each digit 0-9 maps to a note via index. */
 const SCALE = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5'] as const;
 
+/**
+ * Colour palette for the 3-D helix spheres, mandala dots, and particle field.
+ * Ordered so digit 0 = deep indigo, digit 9 = warm salmon.
+ */
 const COLORS = [
   '#1a1a2e', '#16213e', '#0f3460', '#533483', '#8b5cf6',
   '#ffd700', '#ff6b6b', '#4ecdc4', '#95e1d3', '#f38181',
 ] as const;
 
-function digitToNote(digit: number): string {
-  return SCALE[digit];
+/**
+ * Bright ASMMR-specific palette — distinct from COLORS because the ASMMR
+ * canvas uses a near-black background; the main palette's first four entries
+ * (#1a1a2e … #533483) are effectively invisible at low alpha on dark surfaces.
+ */
+const ASMR_COLORS = [
+  '#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa',
+  '#38bdf8', '#4ade80', '#facc15', '#fb923c', '#e879f9',
+] as const;
+
+const MAX_PIXEL_RATIO     = 2;
+const MIN_SURFACE         = 260;  // px — minimum canvas dimension on any axis
+const MAX_PAINT_POINTS    = 6000;
+const INTERACTION_THROTTLE_MS = 34; // ~29 fps interaction sampling
+
+const ASMMR_TARGETS = {
+  rippleBursts:     18,
+  toneBursts:       8,
+  glideMs:          2600,
+  reflectionChars:  36,
+} as const;
+
+// ─── Pure helpers ─────────────────────────────────────────────────────────────
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
 
-function digitToColor(digit: number): string {
-  return COLORS[digit];
+/** Map a digit 0-9 to its musical note in the pentatonic-ish scale. */
+function digitToNote(digit: number): string {
+  return SCALE[clamp(Math.round(digit), 0, SCALE.length - 1)];
 }
+
+/** Map a digit 0-9 to the main colour palette. */
+function digitToColor(digit: number): string {
+  return COLORS[clamp(Math.round(digit), 0, COLORS.length - 1)];
+}
+
+/** Map a digit 0-9 to the bright ASMMR colour palette. */
+function digitToAsmrColor(digit: number): string {
+  return ASMR_COLORS[clamp(Math.round(digit), 0, ASMR_COLORS.length - 1)];
+}
+
+/**
+ * Set up a canvas for HiDPI/Retina screens.
+ * Sets both the CSS display size (style) and the physical pixel buffer (width/height attrs).
+ * Returns a context + logical dimensions object, or null if ctx unavailable.
+ *
+ * IMPORTANT: call `ctx.setTransform(dpr, 0, 0, dpr, 0, 0)` is included so all
+ * subsequent draw calls use CSS-pixel coordinates — no need to multiply by dpr.
+ */
+function setupHiDpiCanvas(
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+): { ctx: CanvasRenderingContext2D; width: number; height: number } | null {
+  const dpr = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+  canvas.style.display = 'block'; // prevent inline-element baseline gap
+  canvas.style.width   = `${width}px`;
+  canvas.style.height  = `${height}px`;
+  canvas.width  = Math.floor(width  * dpr);
+  canvas.height = Math.floor(height * dpr);
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, width, height };
+}
+
+/** Translate a PointerEvent into canvas-local coordinates, clamped to the canvas bounds. */
+function localPointFromEvent(
+  canvas: HTMLCanvasElement,
+  e: PointerEvent,
+): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: clamp(e.clientX - rect.left, 0, rect.width),
+    y: clamp(e.clientY - rect.top,  0, rect.height),
+  };
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DigitalDNAHub({ lessonContext }: { lessonContext?: LessonContext }) {
-  const [activeMode, setActiveMode] = useState<ModeKey>('spiral');
-  const [selectedSeed, setSelectedSeed] = useState<SeedKey>('red');
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioInitialized, setAudioInitialized] = useState(false);
+
+  // ── UI state ──────────────────────────────────────────────────────────────
+  const [activeMode,    setActiveMode]    = useState<ModeKey>('spiral');
+  const [selectedSeed,  setSelectedSeed]  = useState<SeedKey>('red');
+  const [isPlaying,     setIsPlaying]     = useState(false);
+  const [audioReady,    setAudioReady]    = useState(false);  // display-only; logic uses ref
   const [consciousness, setConsciousness] = useState(50);
-  const [harmony, setHarmony] = useState(7);
-  const [tempo, setTempo] = useState(120);
+  const [harmony,       setHarmony]       = useState(7);
+  const [tempo,         setTempo]         = useState(120);
   const [paintedPattern, setPaintedPattern] = useState<PaintPoint[]>([]);
-  const [showPostPrompt, setShowPostPrompt] = useState(false);
-  const [postResponse, setPostResponse] = useState('');
+
+  // Lesson flow
+  const [showPostPrompt,  setShowPostPrompt]  = useState(false);
+  const [postResponse,    setPostResponse]    = useState('');
   const [preAcknowledged, setPreAcknowledged] = useState(!lessonContext?.prePrompt);
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
-  const [canvasWidth, setCanvasWidth] = useState(DESKTOP_CANVAS_WIDTH);
-  const [spiralCanvasHeight, setSpiralCanvasHeight] = useState(SPIRAL_CANVAS_HEIGHT);
-  const [squareCanvasSize, setSquareCanvasSize] = useState(SQUARE_CANVAS_SIZE);
 
+  // Mission tracking
+  const [sessionInteractions, setSessionInteractions] = useState(0);
+  const [playCount,           setPlayCount]           = useState(0);
+  const [visitedModes,        setVisitedModes]        = useState<ModeKey[]>(['spiral']);
+
+  // ASMMR ritual state
+  const [asmmrRitual, setAsmmrRitual] = useState<AsmmrRitualState>({
+    rippleBursts: 0, toneBursts: 0, glideCount: 0, longestGlideMs: 0, completions: 0,
+  });
+  const [asmmrReflection, setAsmmrReflection] = useState('');
+  const [asmmrBlessing,   setAsmmrBlessing]   = useState(
+    'Begin the ASMMR ritual by tracing gentle ripples across the canvas.',
+  );
+
+  // ── Store actions ─────────────────────────────────────────────────────────
   const incrementDnaInteraction = useEducationStore((s) => s.incrementDnaInteraction);
-  const recordPostResponse = useEducationStore((s) => s.recordPostResponse);
-  const completeLesson = useEducationStore((s) => s.completeLesson);
-  const interactionCountRef = useRef(0);
+  const recordPostResponse      = useEducationStore((s) => s.recordPostResponse);
+  const completeLesson          = useEducationStore((s) => s.completeLesson);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const particleCanvasRef = useRef<HTMLCanvasElement>(null);
-  const synthRef = useRef<Tone.PolySynth | null>(null);
-  const particlesRef = useRef<Particle[]>([]);
-  const mouseRef = useRef({ x: 0, y: 0, down: false });
-  const paintedPatternRef = useRef<PaintPoint[]>([]);
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const canvasRef             = useRef<HTMLCanvasElement>(null);  // Three.js spiral
+  const surfaceCanvasRef      = useRef<HTMLCanvasElement>(null);  // 2-D modes
+  const synthRef              = useRef<Tone.PolySynth | null>(null);
+  const particlesRef          = useRef<Particle[]>([]);
+  const paintedPatternRef     = useRef<PaintPoint[]>([]);
+  const lessonInteractionRef  = useRef(0);
+  const sessionInteractionRef = useRef(0);
+  const lastInteractionMsRef  = useRef(0);
 
-  const updateViewportSizing = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    const mobile = window.innerWidth < MOBILE_BREAKPOINT;
-    const nextCanvasWidth = Math.min(DESKTOP_CANVAS_WIDTH, Math.max(280, window.innerWidth - 40));
-    setIsMobileViewport(mobile);
-    setCanvasWidth(nextCanvasWidth);
-    setSpiralCanvasHeight(Math.round(nextCanvasWidth * 0.75));
-    setSquareCanvasSize(nextCanvasWidth);
+  /**
+   * FIX: audioInitialized is tracked in a ref (not only state) so that
+   * ensureAudio's useCallback has zero dependencies and therefore a stable
+   * reference across renders. Previously, listing `audioInitialized` in the
+   * dependency array caused a new `ensureAudio` function object on every audio
+   * start, which re-ran all four canvas effects and cleared their animation loops.
+   */
+  const audioInitializedRef = useRef(false);
+
+  // ── Interaction utilities ─────────────────────────────────────────────────
+
+  const pulseHaptic = useCallback((duration = 10) => {
+    if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(duration);
+    }
   }, []);
 
-  const getPointerPosition = useCallback((canvas: HTMLCanvasElement, event: CanvasPointerEvent) => {
-    const rect = canvas.getBoundingClientRect();
-    const hasTouches = 'touches' in event && event.touches.length > 0;
-    const touchPoint = hasTouches ? event.touches[0] : null;
-    const clientX = touchPoint ? touchPoint.clientX : 'clientX' in event ? event.clientX : 0;
-    const clientY = touchPoint ? touchPoint.clientY : 'clientY' in event ? event.clientY : 0;
-
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-    };
-  }, []);
-
-  // Track canvas interactions for education mode
-  const trackInteraction = useCallback(() => {
+  const trackLessonInteraction = useCallback(() => {
     if (!lessonContext) return;
-    interactionCountRef.current += 1;
-    // Batch to store every 5 interactions to avoid excessive writes
-    if (interactionCountRef.current % 5 === 0) {
+    lessonInteractionRef.current += 1;
+    if (lessonInteractionRef.current % 5 === 0) {
       incrementDnaInteraction(lessonContext.lessonId, lessonContext.studentAlias);
     }
   }, [lessonContext, incrementDnaInteraction]);
 
-  // Flush remaining interactions on unmount
+  // Flush remaining lesson interactions on unmount
   useEffect(() => {
     return () => {
-      if (lessonContext && interactionCountRef.current % 5 !== 0) {
+      if (lessonContext && lessonInteractionRef.current % 5 !== 0) {
         incrementDnaInteraction(lessonContext.lessonId, lessonContext.studentAlias);
       }
     };
   }, [lessonContext, incrementDnaInteraction]);
 
+  /** Throttled interaction counter — force=true bypasses the throttle. */
+  const registerInteraction = useCallback((force = false) => {
+    const now = performance.now();
+    if (!force && now - lastInteractionMsRef.current < INTERACTION_THROTTLE_MS) return;
+    lastInteractionMsRef.current = now;
+    sessionInteractionRef.current += 1;
+    setSessionInteractions(sessionInteractionRef.current);
+    trackLessonInteraction();
+  }, [trackLessonInteraction]);
+
+  /** Returns the digit array for the currently selected seed. */
   const getSequence = useCallback(
     () => SEEDS[selectedSeed].split('').map(Number),
     [selectedSeed],
   );
 
-  const playChord = useCallback(
-    (digits: number[]) => {
-      if (!audioInitialized || !synthRef.current) return;
-      const notes = digits.map(digitToNote);
-      synthRef.current.triggerAttackRelease(notes, '4n');
-    },
-    [audioInitialized],
-  );
+  // ── Audio ─────────────────────────────────────────────────────────────────
 
-  // Initialise synth once
+  /**
+   * FIX: No dependencies → always the same function reference.
+   * Uses audioInitializedRef to avoid listing `audioInitialized` as a dep,
+   * which previously re-created the callback and invalidated all canvas effects.
+   */
+  const ensureAudio = useCallback(async () => {
+    if (Tone.context.state !== 'running') await Tone.start();
+    if (!audioInitializedRef.current) {
+      audioInitializedRef.current = true;
+      setAudioReady(true);
+    }
+  }, []);
+
+  const playChord = useCallback((digits: number[]) => {
+    if (!synthRef.current) return;
+    synthRef.current.triggerAttackRelease(digits.map(digitToNote), '8n');
+  }, []);
+
+  const playDigit = useCallback(async (digit: number) => {
+    await ensureAudio();
+    playChord([digit]);
+    registerInteraction();
+  }, [ensureAudio, playChord, registerInteraction]);
+
+  // Initialise PolySynth + Reverb once on mount
   useEffect(() => {
     if (typeof window === 'undefined' || synthRef.current) return;
-    const synth = new Tone.PolySynth(Tone.Synth, {
+    const synth  = new Tone.PolySynth(Tone.Synth, {
       oscillator: { type: 'sine' },
-      envelope: { attack: 0.1, decay: 0.2, sustain: 0.3, release: 1 },
+      envelope:   { attack: 0.08, decay: 0.2, sustain: 0.3, release: 0.8 },
     }).toDestination();
-
     const reverb = new Tone.Reverb({ decay: 4, wet: 0.3 }).toDestination();
     synth.connect(reverb);
     synthRef.current = synth;
   }, []);
 
+  // Track visited modes for mission card
+  useEffect(() => {
+    setVisitedModes((prev) => prev.includes(activeMode) ? prev : [...prev, activeMode]);
+  }, [activeMode]);
+
+  /** Play the full 60-digit DNA sequence as a melody. */
   const playSequence = useCallback(async () => {
-    if (!audioInitialized) {
-      await Tone.start();
-      setAudioInitialized(true);
-    }
+    await ensureAudio();
     setIsPlaying(true);
+    setPlayCount((c) => c + 1);
+
     const sequence = getSequence();
-    const now = Tone.now();
+    const now      = Tone.now();
     const interval = 60 / tempo;
 
     sequence.slice(0, 60).forEach((digit, i) => {
-      const note = digitToNote(digit);
-      const time = now + i * interval;
-      const duration = interval * 0.8;
-      synthRef.current?.triggerAttackRelease(note, duration, time);
+      synthRef.current?.triggerAttackRelease(
+        digitToNote(digit),
+        interval * 0.8,
+        now + i * interval,
+      );
     });
 
-    setTimeout(
-      () => setIsPlaying(false),
-      sequence.slice(0, 60).length * interval * 1000,
-    );
-  }, [audioInitialized, getSequence, tempo]);
+    setTimeout(() => setIsPlaying(false), sequence.slice(0, 60).length * interval * 1000);
+    registerInteraction(true);
+  }, [ensureAudio, getSequence, tempo, registerInteraction]);
 
-  useEffect(() => {
-    updateViewportSizing();
-    window.addEventListener('resize', updateViewportSizing);
+  // ── ASMMR ritual helpers ──────────────────────────────────────────────────
 
-    return () => {
-      window.removeEventListener('resize', updateViewportSizing);
-    };
-  }, [updateViewportSizing]);
+  const recordAsmmrRipple = useCallback((amount = 1) => {
+    setAsmmrRitual((p) => ({ ...p, rippleBursts: p.rippleBursts + amount }));
+  }, []);
 
-  // 3D Spiral visualisation
+  const recordAsmmrTone = useCallback((amount = 1) => {
+    setAsmmrRitual((p) => ({ ...p, toneBursts: p.toneBursts + amount }));
+  }, []);
+
+  const recordAsmmrGlide = useCallback((durationMs: number) => {
+    setAsmmrRitual((p) => ({
+      ...p,
+      glideCount:     p.glideCount + 1,
+      longestGlideMs: Math.max(p.longestGlideMs, Math.round(durationMs)),
+    }));
+  }, []);
+
+  const asmmrGoals = useCallback((): AsmmrGoal[] => [
+    {
+      id: 'ripple', title: '1. Ripple Attunement',
+      hint: 'Press and glide to release ripple bursts.',
+      current: asmmrRitual.rippleBursts, target: ASMMR_TARGETS.rippleBursts, unit: 'bursts',
+    },
+    {
+      id: 'tone', title: '2. Sonic Resonance',
+      hint: 'Trigger soft tone pulses while moving.',
+      current: asmmrRitual.toneBursts, target: ASMMR_TARGETS.toneBursts, unit: 'tones',
+    },
+    {
+      id: 'glide', title: '3. Sustained Glide',
+      hint: 'Hold a single glide for at least 2.6 seconds.',
+      current: asmmrRitual.longestGlideMs, target: ASMMR_TARGETS.glideMs, unit: 'ms',
+    },
+    {
+      id: 'reflect', title: '4. Learning Reflection',
+      hint: 'Write what pattern or shift you noticed.',
+      current: asmmrReflection.trim().length, target: ASMMR_TARGETS.reflectionChars, unit: 'chars',
+    },
+  ], [asmmrReflection, asmmrRitual]);
+
+  const asmmrRitualReady = asmmrGoals().every((g) => g.current >= g.target);
+
+  const asmmrFocusScore = clamp(Math.round(
+    (Math.min(asmmrRitual.rippleBursts,   ASMMR_TARGETS.rippleBursts)   / ASMMR_TARGETS.rippleBursts)   * 25
+    + (Math.min(asmmrRitual.toneBursts,   ASMMR_TARGETS.toneBursts)     / ASMMR_TARGETS.toneBursts)     * 25
+    + (Math.min(asmmrRitual.longestGlideMs, ASMMR_TARGETS.glideMs)      / ASMMR_TARGETS.glideMs)        * 25
+    + (Math.min(asmmrReflection.trim().length, ASMMR_TARGETS.reflectionChars) / ASMMR_TARGETS.reflectionChars) * 25,
+  ), 0, 100);
+
+  const completeAsmmrRitual = useCallback(() => {
+    if (!asmmrRitualReady) return;
+    const domain   = selectedSeed === 'red' ? 'fire' : selectedSeed === 'blue' ? 'water' : 'earth';
+    const blessings = [
+      `Your ${domain} strand now carries a calmer sonic signature.`,
+      'The ASMMR sequence stabilized your touch-to-tone feedback loop.',
+      `Ritual cycle sealed — harmony ${harmony} now anchors the field.`,
+      `Your reflection was recorded and the ${domain} circuit is brighter.`,
+    ];
+    const idx = (asmmrRitual.completions + asmmrReflection.trim().length + harmony) % blessings.length;
+    setAsmmrBlessing(blessings[idx]);
+    setAsmmrReflection('');
+    setAsmmrRitual((p) => ({
+      ...p, rippleBursts: 0, toneBursts: 0, glideCount: 0, longestGlideMs: 0,
+      completions: p.completions + 1,
+    }));
+    pulseHaptic(18);
+    registerInteraction(true);
+  }, [asmmrReflection, asmmrRitual.completions, asmmrRitualReady, harmony, pulseHaptic, registerInteraction, selectedSeed]);
+
+  const resetAsmmrRitual = useCallback(() => {
+    setAsmmrRitual({ rippleBursts: 0, toneBursts: 0, glideCount: 0, longestGlideMs: 0, completions: 0 });
+    setAsmmrReflection('');
+    setAsmmrBlessing('ASMMR ritual metrics reset. Begin a new learning cycle.');
+    registerInteraction(true);
+  }, [registerInteraction]);
+
+  // ── Keep paint ref in sync with state ────────────────────────────────────
+  useEffect(() => { paintedPatternRef.current = paintedPattern; }, [paintedPattern]);
+
+  const clearPaintedPattern = useCallback(() => {
+    paintedPatternRef.current = [];
+    setPaintedPattern([]);
+    registerInteraction(true);
+  }, [registerInteraction]);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3-D Spiral (Three.js WebGL)
+  // ══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!canvasRef.current || activeMode !== 'spiral') return;
 
     const canvas = canvasRef.current;
-    const scene = new THREE.Scene();
+    const scene  = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0e27);
 
-    const camera = new THREE.PerspectiveCamera(75, canvasWidth / spiralCanvasHeight, 0.1, 1000);
-    camera.position.z = 20;
+    // Initial aspect ratio will be corrected by resize() immediately below
+    const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 1000);
+    camera.position.z = 22;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setSize(canvasWidth, spiralCanvasHeight, false);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    /**
+     * FIX: Pass `true` (default) so Three.js manages canvas.style.width/height.
+     * Previously we called setSize(w, h, false) and manually set inline styles,
+     * creating a timing race where styles were applied before the renderer existed.
+     */
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
+    // display:block prevents an inline-element baseline gap that can collapse
+    // the parent container to 0 height before JS sets explicit dimensions.
+    canvas.style.display = 'block';
 
+    // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-    const pl1 = new THREE.PointLight(0xffd700, 1.5);
-    pl1.position.set(10, 10, 10);
-    scene.add(pl1);
-    const pl2 = new THREE.PointLight(0x4444ff, 1.0);
-    pl2.position.set(-10, -10, 5);
-    scene.add(pl2);
+    const pl1 = new THREE.PointLight(0xffd700, 1.6); pl1.position.set(10,  10,  10); scene.add(pl1);
+    const pl2 = new THREE.PointLight(0x44aaff, 1.0); pl2.position.set(-10, -10,  8); scene.add(pl2);
 
+    // Build helix geometry from the seed sequence
     const sequence = getSequence();
-    const group = new THREE.Group();
+    const group    = new THREE.Group();
+    const spheres: THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhongMaterial>[] = [];
 
     for (let helix = 0; helix < harmony; helix++) {
-      const helixGroup = new THREE.Group();
+      const helixGroup  = new THREE.Group();
       const angleOffset = (helix * Math.PI * 2) / harmony;
 
       for (let i = 0; i < sequence.length; i++) {
-        const digit = sequence[i];
-        const t = i / 10;
-        const radius = 3 + (digit / 10) * 2;
-        const angle = angleOffset + t * Math.PI * 0.5;
+        const digit  = sequence[i];
+        const t      = i / 9;
+        const radius = 3 + (digit / 10) * 2.4;
+        const angle  = angleOffset + t * Math.PI * 0.58;
         const x = Math.cos(angle) * radius;
         const y = Math.sin(angle) * radius;
         const z = t - 10;
 
-        const geo = new THREE.SphereGeometry(0.15 + digit * 0.02, 16, 16);
+        const geo = new THREE.SphereGeometry(0.15 + digit * 0.018, 14, 14);
         const mat = new THREE.MeshPhongMaterial({
-          color: new THREE.Color(digitToColor(digit)),
-          emissive: new THREE.Color(digitToColor(digit)),
-          emissiveIntensity: 0.5,
-          shininess: 100,
+          color:             new THREE.Color(digitToColor(digit)),
+          emissive:          new THREE.Color(digitToColor(digit)),
+          emissiveIntensity: 0.45,
+          shininess:         100,
         });
         const sphere = new THREE.Mesh(geo, mat);
         sphere.position.set(x, y, z);
         sphere.userData = { digit, index: i };
+        spheres.push(sphere);
         helixGroup.add(sphere);
 
+        // Connector line to the previous node
         if (i > 0) {
-          const prevAngle = angleOffset + ((i - 1) / 10) * Math.PI * 0.5;
-          const prevRadius = 3 + (sequence[i - 1] / 10) * 2;
+          const pa = angleOffset + ((i - 1) / 9) * Math.PI * 0.58;
+          const pr = 3 + (sequence[i - 1] / 10) * 2.4;
           const lineGeo = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(
-              Math.cos(prevAngle) * prevRadius,
-              Math.sin(prevAngle) * prevRadius,
-              (i - 1) / 10 - 10,
-            ),
+            new THREE.Vector3(Math.cos(pa) * pr, Math.sin(pa) * pr, (i - 1) / 9 - 10),
             new THREE.Vector3(x, y, z),
           ]);
-          const lineMat = new THREE.LineBasicMaterial({
-            color: 0x666666,
-            opacity: 0.3,
-            transparent: true,
-          });
-          helixGroup.add(new THREE.Line(lineGeo, lineMat));
+          helixGroup.add(new THREE.Line(
+            lineGeo,
+            new THREE.LineBasicMaterial({ color: 0x6688aa, opacity: 0.35, transparent: true }),
+          ));
         }
       }
       group.add(helixGroup);
     }
     scene.add(group);
 
+    // ── Responsive resize ─────────────────────────────────────────────────
+    const resize = () => {
+      const host = canvas.parentElement;
+      if (!host) return;
+      const w = Math.round(clamp(host.clientWidth, MIN_SURFACE, 980));
+      const h = Math.round(clamp(
+        Math.min(w * 0.72, window.innerHeight * 0.62),
+        280, 760,
+      ));
+      // Three.js manages canvas style when updateStyle=true (the default)
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    };
+
+    resize();
+    const ro = new ResizeObserver(resize);
+    if (canvas.parentElement) ro.observe(canvas.parentElement);
+    window.addEventListener('resize', resize);
+
+    // ── Interaction ───────────────────────────────────────────────────────
     const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
+    const pointer   = new THREE.Vector2(2, 2); // off-screen default
 
-    const onPointerMove = (event: PointerEvent) => {
-      const point = getPointerPosition(canvas, event);
-      mouse.x = (point.x / canvasWidth) * 2 - 1;
-      mouse.y = -(point.y / spiralCanvasHeight) * 2 + 1;
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(scene.children, true);
+    const pointers   = new Map<number, { x: number; y: number }>();
+    let pinchDist    = 0;
+    let targetRotX   = 0;
+    let targetRotY   = 0;
+    let rotX         = 0;
+    let rotY         = 0;
+    let hovered: THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhongMaterial> | null = null;
+    let lastToneAt   = 0;
 
-      if (intersects.length > 0) {
-        const obj = intersects[0].object as THREE.Mesh<
-          THREE.BufferGeometry,
-          THREE.MeshPhongMaterial
-        >;
-        if (obj.userData.digit !== undefined) {
-          obj.material.emissiveIntensity = 1.0;
-          if (audioInitialized) playChord([obj.userData.digit as number]);
-          trackInteraction();
-          setTimeout(() => {
-            if (obj.material) obj.material.emissiveIntensity = 0.5;
-          }, 200);
-        }
+    const setPointer = (clientX: number, clientY: number) => {
+      const r = canvas.getBoundingClientRect();
+      pointer.x =  ((clientX - r.left) / r.width)  * 2 - 1;
+      pointer.y = -((clientY - r.top)  / r.height) * 2 + 1;
+    };
+
+    const probeSpheres = () => {
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(spheres, false)[0]
+        ?.object as THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhongMaterial> | undefined;
+
+      if (hovered && hovered !== hit) { hovered.material.emissiveIntensity = 0.45; hovered = null; }
+      if (!hit || hit.userData.digit === undefined) return;
+
+      hovered = hit;
+      hit.material.emissiveIntensity = 1.0;
+
+      const now = performance.now();
+      if (now - lastToneAt > 85) {
+        lastToneAt = now;
+        playChord([hit.userData.digit as number]);
+        registerInteraction();
       }
     };
-    canvas.addEventListener('pointermove', onPointerMove);
 
-    let animId: number;
+    const updatePinch = () => {
+      if (pointers.size !== 2) { pinchDist = 0; return; }
+      const [a, b] = Array.from(pointers.values());
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchDist > 0) {
+        camera.position.z = clamp(camera.position.z - (d - pinchDist) * 0.03, 8, 38);
+      }
+      pinchDist = d;
+    };
+
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      void ensureAudio();
+      setPointer(e.clientX, e.clientY);
+      probeSpheres();
+      registerInteraction(true);
+      pulseHaptic(8);
+    };
+    const onMove = (e: PointerEvent) => {
+      const prev = pointers.get(e.pointerId);
+      if (prev) {
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.size === 1) {
+          targetRotY += (e.clientX - prev.x) * 0.005;
+          targetRotX  = clamp(targetRotX + (e.clientY - prev.y) * 0.003, -1.2, 1.2);
+          registerInteraction();
+        }
+        updatePinch();
+      }
+      setPointer(e.clientX, e.clientY);
+      probeSpheres();
+    };
+    const onUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+      updatePinch();
+    };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      camera.position.z = clamp(camera.position.z + e.deltaY * 0.01, 8, 38);
+    };
+
+    canvas.style.touchAction = 'none';
+    canvas.addEventListener('pointerdown',   onDown);
+    canvas.addEventListener('pointermove',   onMove);
+    canvas.addEventListener('pointerup',     onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('wheel',         onWheel, { passive: false });
+
+    // ── Animation loop ────────────────────────────────────────────────────
+    let animId = 0;
+    const clock = new THREE.Clock();
+
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      group.rotation.y += 0.003;
-      group.rotation.x = Math.sin(Date.now() * 0.0003) * 0.1;
-      const b = Math.sin(Date.now() * 0.001) * 0.1 + 1.0;
-      group.scale.set(b, b, b);
+      const t = clock.getElapsedTime();
+      rotX += (targetRotX - rotX) * 0.08;
+      rotY += (targetRotY - rotY) * 0.08;
+      group.rotation.y = t * 0.22 + rotY;
+      group.rotation.x = Math.sin(t * 0.7) * 0.08 + rotX;
+      const pulse = 1 + Math.sin(t * 2.2) * 0.05;
+      group.scale.set(pulse, pulse, pulse);
       renderer.render(scene, camera);
     };
     animate();
 
+    // ── Cleanup ───────────────────────────────────────────────────────────
     return () => {
       cancelAnimationFrame(animId);
-      canvas.removeEventListener('pointermove', onPointerMove);
-
+      ro.disconnect();
+      window.removeEventListener('resize', resize);
+      canvas.removeEventListener('pointerdown',   onDown);
+      canvas.removeEventListener('pointermove',   onMove);
+      canvas.removeEventListener('pointerup',     onUp);
+      canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('wheel',         onWheel);
       scene.remove(group);
-      group.traverse((object) => {
-        const disposableObject = object as THREE.Object3D & {
+      group.traverse((obj) => {
+        const o = obj as THREE.Object3D & {
           geometry?: THREE.BufferGeometry;
           material?: THREE.Material | THREE.Material[];
         };
-
-        disposableObject.geometry?.dispose();
-
-        if (Array.isArray(disposableObject.material)) {
-          disposableObject.material.forEach((material) => material.dispose());
-        } else {
-          disposableObject.material?.dispose();
-        }
+        o.geometry?.dispose();
+        if (Array.isArray(o.material)) o.material.forEach((m) => m.dispose());
+        else o.material?.dispose();
       });
-
       renderer.dispose();
     };
-  }, [activeMode, selectedSeed, harmony, audioInitialized, getSequence, playChord, canvasWidth, spiralCanvasHeight, getPointerPosition, trackInteraction]);
+  }, [activeMode, selectedSeed, harmony, getSequence, playChord, ensureAudio, registerInteraction, pulseHaptic]);
 
-  // Mandala mode
+  // ══════════════════════════════════════════════════════════════════════════
+  // Sacred Mandala (2-D paint canvas)
+  // ══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!particleCanvasRef.current || activeMode !== 'mandala') return;
+    if (!surfaceCanvasRef.current || activeMode !== 'mandala') return;
 
-    const canvas = particleCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const W = (canvas.width = squareCanvasSize);
-    const H = (canvas.height = squareCanvasSize);
-    const cx = W / 2;
-    const cy = H / 2;
+    const canvas   = surfaceCanvasRef.current;
+    let setup      = setupHiDpiCanvas(canvas, 800, 800);
+    if (!setup) return;
 
-    const sequence = getSequence();
-    const segments = harmony * 12;
+    let { ctx, width: W, height: H } = setup;
+    let cx = W / 2, cy = H / 2;
 
-    const drawMandala = () => {
-      ctx.fillStyle = '#0a0e27';
+    const pointers  = new Map<number, { x: number; y: number; drawing: boolean }>();
+    let lastToneAt  = 0;
+    const sequence  = getSequence();
+
+    const resize = () => {
+      const host = canvas.parentElement;
+      if (!host) return;
+      const side = Math.round(clamp(
+        Math.min(host.clientWidth, window.innerHeight * 0.62),
+        MIN_SURFACE, 860,
+      ));
+      setup = setupHiDpiCanvas(canvas, side, side);
+      if (!setup) return;
+      ({ ctx, width: W, height: H } = setup);
+      cx = W / 2; cy = H / 2;
+    };
+
+    resize();
+    const ro = new ResizeObserver(resize);
+    if (canvas.parentElement) ro.observe(canvas.parentElement);
+    window.addEventListener('resize', resize);
+
+    /** Paint a point with rotational symmetry (harmony-fold mirror). */
+    const addSymmetricPaint = (x: number, y: number) => {
+      const dx   = x - cx, dy = y - cy;
+      const dist = Math.hypot(dx, dy);
+      const base = Math.atan2(dy, dx);
+      const step = (Math.PI * 2) / harmony;
+
+      for (let i = 0; i < harmony; i++) {
+        const a = base + step * i;
+        paintedPatternRef.current.push({
+          x: cx + Math.cos(a) * dist,
+          y: cy + Math.sin(a) * dist,
+        });
+      }
+      if (paintedPatternRef.current.length > MAX_PAINT_POINTS) {
+        paintedPatternRef.current.splice(0, paintedPatternRef.current.length - MAX_PAINT_POINTS);
+      }
+
+      const ringSpacing = Math.max(24, Math.min(W, H) / 11);
+      const digit = Math.floor((dist / ringSpacing) % 10);
+      const now   = performance.now();
+      if (now - lastToneAt > 95) { playChord([digit]); lastToneAt = now; }
+      registerInteraction();
+    };
+
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault();
+      const pt = localPointFromEvent(canvas, e);
+      canvas.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { ...pt, drawing: true });
+      void ensureAudio();
+      addSymmetricPaint(pt.x, pt.y);
+      pulseHaptic(8);
+      registerInteraction(true);
+    };
+    const onMove = (e: PointerEvent) => {
+      const s = pointers.get(e.pointerId);
+      if (!s || !s.drawing) return;
+      const pt = localPointFromEvent(canvas, e);
+      pointers.set(e.pointerId, { ...pt, drawing: true });
+      addSymmetricPaint(pt.x, pt.y);
+    };
+    const onUp = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+      setPaintedPattern([...paintedPatternRef.current]);
+    };
+
+    canvas.style.touchAction = 'none';
+    canvas.addEventListener('pointerdown',   onDown);
+    canvas.addEventListener('pointermove',   onMove);
+    canvas.addEventListener('pointerup',     onUp);
+    canvas.addEventListener('pointercancel', onUp);
+
+    let animId = 0;
+    const draw = () => {
+      animId = requestAnimationFrame(draw);
+      const rs = Math.max(24, Math.min(W, H) / 11);
+      const seg = harmony * 12;
+
+      // Background gradient
+      const bg = ctx.createRadialGradient(cx, cy, rs * 0.5, cx, cy, W * 0.55);
+      bg.addColorStop(0, '#10143a');
+      bg.addColorStop(1, '#070b1e');
+      ctx.fillStyle = bg;
       ctx.fillRect(0, 0, W, H);
 
+      // DNA ring dots
       for (let ring = 0; ring < 7; ring++) {
-        const radius = (ring + 1) * 50;
-        for (let i = 0; i < segments; i++) {
-          const angle = (i / segments) * Math.PI * 2 - Math.PI / 2;
-          const digit = sequence[(ring * segments + i) % sequence.length];
-          const x = cx + Math.cos(angle) * radius;
-          const y = cy + Math.sin(angle) * radius;
+        const r = (ring + 1) * rs;
+        for (let i = 0; i < seg; i++) {
+          const a     = (i / seg) * Math.PI * 2 - Math.PI / 2;
+          const digit = sequence[(ring * seg + i) % sequence.length];
+          const nx    = cx + Math.cos(a) * r;
+          const ny    = cy + Math.sin(a) * r;
           ctx.beginPath();
-          ctx.arc(x, y, 3 + digit * 0.5, 0, Math.PI * 2);
-          ctx.fillStyle = digitToColor(digit);
-          ctx.shadowBlur = 10;
+          ctx.arc(nx, ny, 2.2 + digit * 0.45, 0, Math.PI * 2);
+          ctx.fillStyle   = digitToColor(digit);
+          ctx.shadowBlur  = 10;
           ctx.shadowColor = digitToColor(digit);
           ctx.fill();
           ctx.shadowBlur = 0;
         }
       }
 
-      ctx.strokeStyle = '#ffd700';
-      ctx.lineWidth = 2;
+      // Symmetry guide lines
+      ctx.strokeStyle = 'rgba(255,215,0,0.32)';
+      ctx.lineWidth   = 1.5;
       for (let i = 0; i < harmony; i++) {
         const a1 = (i / harmony) * Math.PI * 2 - Math.PI / 2;
-        const a2 = ((i + 3) / harmony) * Math.PI * 2 - Math.PI / 2;
+        const a2 = ((i + Math.max(2, Math.floor(harmony / 3))) / harmony) * Math.PI * 2 - Math.PI / 2;
         ctx.beginPath();
-        ctx.moveTo(cx + Math.cos(a1) * 80, cy + Math.sin(a1) * 80);
-        ctx.lineTo(cx + Math.cos(a2) * 80, cy + Math.sin(a2) * 80);
+        ctx.moveTo(cx + Math.cos(a1) * rs * 1.6, cy + Math.sin(a1) * rs * 1.6);
+        ctx.lineTo(cx + Math.cos(a2) * rs * 1.6, cy + Math.sin(a2) * rs * 1.6);
         ctx.stroke();
       }
 
-      paintedPatternRef.current.forEach((pt) => {
+      // User paint points (gold glow)
+      paintedPatternRef.current.forEach((pt, idx) => {
+        const alpha = 0.25 + (idx % harmony) / (harmony * 2);
         ctx.beginPath();
-        ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 215, 0, 0.6)';
+        ctx.arc(pt.x, pt.y, 3.2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,215,120,${alpha.toFixed(2)})`;
         ctx.fill();
       });
     };
-
-    const onDown = () => { mouseRef.current.down = true; };
-    const onUp = () => {
-      mouseRef.current.down = false;
-      setPaintedPattern([...paintedPatternRef.current]);
-    };
-    const onMove = (e: PointerEvent) => {
-      const point = getPointerPosition(canvas, e);
-      const x = point.x;
-      const y = point.y;
-      mouseRef.current.x = x;
-      mouseRef.current.y = y;
-      if (mouseRef.current.down) {
-        paintedPatternRef.current.push({ x, y });
-        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
-        const digit = Math.floor((dist / 50) % 10);
-        if (audioInitialized) playChord([digit]);
-        trackInteraction();
-      }
-    };
-
-    canvas.addEventListener('pointerdown', onDown);
-    canvas.addEventListener('pointerup', onUp);
-    canvas.addEventListener('pointercancel', onUp);
-    canvas.addEventListener('pointermove', onMove);
-
-    let animId: number;
-    const loop = () => { animId = requestAnimationFrame(loop); drawMandala(); };
-    loop();
+    draw();
 
     return () => {
       cancelAnimationFrame(animId);
-      canvas.removeEventListener('pointerdown', onDown);
-      canvas.removeEventListener('pointerup', onUp);
+      ro.disconnect();
+      window.removeEventListener('resize', resize);
+      canvas.removeEventListener('pointerdown',   onDown);
+      canvas.removeEventListener('pointermove',   onMove);
+      canvas.removeEventListener('pointerup',     onUp);
       canvas.removeEventListener('pointercancel', onUp);
-      canvas.removeEventListener('pointermove', onMove);
     };
-  }, [activeMode, selectedSeed, harmony, audioInitialized, getSequence, playChord, squareCanvasSize, getPointerPosition, trackInteraction]);
+  }, [activeMode, selectedSeed, harmony, getSequence, ensureAudio, playChord, registerInteraction, pulseHaptic]);
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // Particle Field (2-D physics canvas)
+  // ══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
-    paintedPatternRef.current = paintedPattern;
-  }, [paintedPattern]);
+    if (!surfaceCanvasRef.current || activeMode !== 'particles') return;
 
-  const clearPaintedPattern = () => {
-    paintedPatternRef.current = [];
-    setPaintedPattern([]);
-  };
+    const canvas  = surfaceCanvasRef.current;
+    let setup     = setupHiDpiCanvas(canvas, 800, 800);
+    if (!setup) return;
 
-  // Particle field mode
-  useEffect(() => {
-    if (!particleCanvasRef.current || activeMode !== 'particles') return;
+    let { ctx, width: W, height: H } = setup;
+    const sequence  = getSequence();
+    const pointers  = new Map<number, { x: number; y: number; strength: number }>();
+    const ripples: Ripple[] = [];
 
-    const canvas = particleCanvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const W = (canvas.width = squareCanvasSize);
-    const H = (canvas.height = squareCanvasSize);
+    const rebuildParticles = () => {
+      const count = clamp(Math.round((W * H) / 5200), 90, 220);
+      particlesRef.current = Array.from({ length: count }, (_, i) => {
+        const digit = sequence[i % sequence.length];
+        return {
+          x: Math.random() * W, y: Math.random() * H,
+          vx: (Math.random() - 0.5) * 1.2, vy: (Math.random() - 0.5) * 1.2,
+          digit, color: digitToColor(digit),
+          size: 1.8 + digit * 0.36, mass: digit + 1,
+        };
+      });
+    };
 
-    const sequence = getSequence();
-    particlesRef.current = sequence.map((digit) => ({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      vx: (Math.random() - 0.5) * 2,
-      vy: (Math.random() - 0.5) * 2,
-      digit,
-      color: digitToColor(digit),
-      size: 2 + digit * 0.5,
-      mass: digit + 1,
-    }));
+    const resize = () => {
+      const host = canvas.parentElement;
+      if (!host) return;
+      const side = Math.round(clamp(
+        Math.min(host.clientWidth, window.innerHeight * 0.62),
+        MIN_SURFACE, 900,
+      ));
+      setup = setupHiDpiCanvas(canvas, side, side);
+      if (!setup) return;
+      ({ ctx, width: W, height: H } = setup);
+      rebuildParticles();
+    };
 
+    resize();
+    const ro = new ResizeObserver(resize);
+    if (canvas.parentElement) ro.observe(canvas.parentElement);
+    window.addEventListener('resize', resize);
+
+    const spawnRipple = (x: number, y: number, intensity = 1) => {
+      ripples.push({
+        x, y,
+        radius: 6, speed: 1.8 + intensity * 0.9,
+        alpha: 0.7, color: 'rgba(120,220,255,1)', lineWidth: 2.2,
+      });
+    };
+
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault();
+      const pt = localPointFromEvent(canvas, e);
+      canvas.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { ...pt, strength: Math.max(0.3, e.pressure || 0.8) });
+      const digit = sequence[Math.floor((pt.x / Math.max(1, W)) * sequence.length) % sequence.length];
+      void ensureAudio().then(() => playChord([digit]));
+      pulseHaptic(9);
+      spawnRipple(pt.x, pt.y, 1.2);
+      registerInteraction(true);
+    };
     const onMove = (e: PointerEvent) => {
-      const point = getPointerPosition(canvas, e);
-      mouseRef.current.x = point.x;
-      mouseRef.current.y = point.y;
+      const pt = localPointFromEvent(canvas, e);
+      if (e.pointerType === 'mouse' && !pointers.has(e.pointerId)) {
+        pointers.set(e.pointerId, { ...pt, strength: 0.45 });
+      }
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { ...pt, strength: Math.max(0.25, e.pressure || 0.6) });
+      registerInteraction();
     };
-    canvas.addEventListener('pointermove', onMove);
+    const onUp = (e: PointerEvent) => {
+      const upPt = localPointFromEvent(canvas, e);
+      spawnRipple(upPt.x, upPt.y, 0.8);
+      pointers.delete(e.pointerId);
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    };
+    const onLeave = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse') pointers.delete(e.pointerId);
+    };
 
-    let animId: number;
+    canvas.style.touchAction = 'none';
+    canvas.addEventListener('pointerdown',   onDown);
+    canvas.addEventListener('pointermove',   onMove);
+    canvas.addEventListener('pointerup',     onUp);
+    canvas.addEventListener('pointercancel', onUp);
+    canvas.addEventListener('pointerleave',  onLeave);
+
+    let animId = 0;
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      ctx.fillStyle = 'rgba(10, 14, 39, 0.1)';
+      ctx.fillStyle = 'rgba(10,14,39,0.14)';
       ctx.fillRect(0, 0, W, H);
 
+      const t          = performance.now() * 0.001;
+      const attractors = pointers.size
+        ? Array.from(pointers.values())
+        : [{ x: W / 2 + Math.cos(t * 0.7) * W * 0.22, y: H / 2 + Math.sin(t * 0.9) * H * 0.22, strength: 0.35 }];
+
       for (const p of particlesRef.current) {
-        const dx = mouseRef.current.x - p.x;
-        const dy = mouseRef.current.y - p.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 200) {
-          const safeDist = Math.max(dist, 0.0001);
-          const force = ((200 - dist) / 1000) * (consciousness / 50);
-          p.vx += (dx / safeDist) * force;
-          p.vy += (dy / safeDist) * force;
+        for (const a of attractors) {
+          const dx = a.x - p.x, dy = a.y - p.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < 260) {
+            const sd    = Math.max(dist, 0.0001);
+            const force = ((260 - dist) / 260) * 0.085 * a.strength * (0.5 + consciousness / 100);
+            p.vx += (dx / sd) * force / p.mass;
+            p.vy += (dy / sd) * force / p.mass;
+          }
         }
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vx *= 0.99;
-        p.vy *= 0.99;
-        if (p.x < 0 || p.x > W) p.vx *= -1;
-        if (p.y < 0 || p.y > H) p.vy *= -1;
-        p.x = Math.max(0, Math.min(W, p.x));
-        p.y = Math.max(0, Math.min(H, p.y));
+        p.x += p.vx; p.y += p.vy;
+        p.vx *= 0.985; p.vy *= 0.985;
+        if (p.x < 0 || p.x > W) p.vx *= -0.9;
+        if (p.y < 0 || p.y > H) p.vy *= -0.9;
+        p.x = clamp(p.x, 0, W); p.y = clamp(p.y, 0, H);
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.shadowBlur = 10;
+        ctx.fillStyle   = p.color;
+        ctx.shadowBlur  = 8;
         ctx.shadowColor = p.color;
         ctx.fill();
         ctx.shadowBlur = 0;
       }
 
-      ctx.strokeStyle = 'rgba(255, 215, 0, 0.1)';
-      ctx.lineWidth = 1;
+      // Constellation lines between nearby particles
+      ctx.strokeStyle = 'rgba(255,215,150,0.12)';
+      ctx.lineWidth   = 1;
       const pts = particlesRef.current;
       for (let i = 0; i < pts.length; i++) {
         for (let j = i + 1; j < pts.length; j++) {
-          const d = Math.sqrt(
-            (pts[i].x - pts[j].x) ** 2 + (pts[i].y - pts[j].y) ** 2,
-          );
-          if (d < 100) {
+          if (Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y) < 90) {
             ctx.beginPath();
             ctx.moveTo(pts[i].x, pts[i].y);
             ctx.lineTo(pts[j].x, pts[j].y);
@@ -506,278 +962,676 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
           }
         }
       }
+
+      // Ripple rings
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        r.radius += r.speed; r.alpha -= 0.018; r.lineWidth *= 0.993;
+        if (r.alpha <= 0.02) { ripples.splice(i, 1); continue; }
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = r.color.replace('1)', `${r.alpha.toFixed(2)})`);
+        ctx.lineWidth   = r.lineWidth;
+        ctx.stroke();
+      }
     };
     animate();
 
     return () => {
       cancelAnimationFrame(animId);
-      canvas.removeEventListener('pointermove', onMove);
+      ro.disconnect();
+      window.removeEventListener('resize', resize);
+      canvas.removeEventListener('pointerdown',   onDown);
+      canvas.removeEventListener('pointermove',   onMove);
+      canvas.removeEventListener('pointerup',     onUp);
+      canvas.removeEventListener('pointercancel', onUp);
+      canvas.removeEventListener('pointerleave',  onLeave);
     };
-  }, [activeMode, selectedSeed, consciousness, getSequence, squareCanvasSize, getPointerPosition]);
+  }, [activeMode, selectedSeed, consciousness, getSequence, ensureAudio, playChord, registerInteraction, pulseHaptic]);
 
-  const initAudioAndPlay = async () => {
-    if (!audioInitialized) {
-      await Tone.start();
-      setAudioInitialized(true);
-    }
-    playSequence();
-  };
+  // ══════════════════════════════════════════════════════════════════════════
+  // ASMMR Flow Canvas (2-D ripple + spark canvas)
+  // ══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (!surfaceCanvasRef.current || activeMode !== 'asmr') return;
 
-  const modes: { id: ModeKey; icon: string; label: string; desc: string }[] = [
-    { id: 'spiral', icon: '\u{1F300}', label: 'DNA Helix', desc: 'Touch the spheres' },
-    { id: 'mandala', icon: '\u{1F52E}', label: '🔮 Sacred Mandala', desc: 'Paint your pattern' },
-    { id: 'particles', icon: '\u2728', label: '✨ Particle Field', desc: 'Guide with your hand' },
-    { id: 'sound', icon: '\u{1F3B5}', label: '🎵 Sound Temple', desc: 'Hear the sequence' },
-    { id: 'journey', icon: '\u{1F9ED}', label: '🧭 Guided Journey', desc: 'Follow the path' },
+    const canvas  = surfaceCanvasRef.current;
+    let setup     = setupHiDpiCanvas(canvas, 800, 800);
+    if (!setup) return;
+
+    let { ctx, width: W, height: H } = setup;
+    const sequence = getSequence();
+    const pointers = new Map<number, { x: number; y: number; lastEmit: number; startAt: number }>();
+    const ripples: Ripple[] = [];
+    const sparks:  Spark[]  = [];
+    let lastToneAt = 0;
+
+    const resize = () => {
+      const host = canvas.parentElement;
+      if (!host) return;
+      const side = Math.round(clamp(
+        Math.min(host.clientWidth, window.innerHeight * 0.62),
+        MIN_SURFACE, 900,
+      ));
+      setup = setupHiDpiCanvas(canvas, side, side);
+      if (!setup) return;
+      ({ ctx, width: W, height: H } = setup);
+    };
+
+    resize();
+    const ro = new ResizeObserver(resize);
+    if (canvas.parentElement) ro.observe(canvas.parentElement);
+    window.addEventListener('resize', resize);
+
+    const noteAtPoint = (x: number, y: number) => {
+      const mix = ((x / Math.max(1, W)) + (y / Math.max(1, H))) * 0.5;
+      return sequence[Math.floor(mix * sequence.length) % sequence.length];
+    };
+
+    /**
+     * FIX: Use ASMR_COLORS (bright palette) instead of COLORS (dark palette).
+     * The COLORS array's first four entries are near-black (#1a1a2e … #533483)
+     * which were invisible on the dark ASMMR canvas background.
+     */
+    const emitRipple = (x: number, y: number, intense = false, countForRitual = false) => {
+      const digit = noteAtPoint(x, y);
+      ripples.push({
+        x, y,
+        radius:    intense ? 10 : 5,
+        speed:     intense ? 2.3 : 1.6,
+        alpha:     intense ? 0.88 : 0.65,
+        color:     digitToAsmrColor(digit),
+        lineWidth: intense ? 3.2 : 1.8,
+      });
+      if (countForRitual) recordAsmmrRipple();
+    };
+
+    const emitSparks = (x: number, y: number, count: number) => {
+      const digit = noteAtPoint(x, y);
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+        const speed = 0.45 + Math.random() * 1.1;
+        sparks.push({
+          x, y,
+          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+          size: 1.8 + Math.random() * 2.2, alpha: 0.85,
+          color: digitToAsmrColor(digit),
+        });
+      }
+    };
+
+    const triggerTone = (digit: number) => { playChord([digit]); recordAsmmrTone(); };
+
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault();
+      const pt  = localPointFromEvent(canvas, e);
+      const now = performance.now();
+      canvas.setPointerCapture(e.pointerId);
+      pointers.set(e.pointerId, { ...pt, lastEmit: now, startAt: now });
+      void ensureAudio().then(() => triggerTone(noteAtPoint(pt.x, pt.y)));
+      emitRipple(pt.x, pt.y, true, true);
+      emitSparks(pt.x, pt.y, 12);
+      pulseHaptic(11);
+      registerInteraction(true);
+    };
+    const onMove = (e: PointerEvent) => {
+      const state = pointers.get(e.pointerId);
+      if (!state) return;
+      const pt  = localPointFromEvent(canvas, e);
+      const now = performance.now();
+      pointers.set(e.pointerId, { ...pt, lastEmit: state.lastEmit, startAt: state.startAt });
+      if (now - state.lastEmit < 66) return;
+      pointers.set(e.pointerId, { ...pt, lastEmit: now, startAt: state.startAt });
+      emitRipple(pt.x, pt.y, false, true);
+      emitSparks(pt.x, pt.y, 3);
+      if (now - lastToneAt > 92) { triggerTone(noteAtPoint(pt.x, pt.y)); lastToneAt = now; }
+      registerInteraction();
+    };
+    const onUp = (e: PointerEvent) => {
+      const state = pointers.get(e.pointerId);
+      const pt    = localPointFromEvent(canvas, e);
+      emitRipple(pt.x, pt.y, true, true);
+      emitSparks(pt.x, pt.y, 8);
+      if (state) {
+        const dur = performance.now() - state.startAt;
+        if (dur >= 420) recordAsmmrGlide(dur);
+      }
+      pointers.delete(e.pointerId);
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    };
+
+    canvas.style.touchAction = 'none';
+    canvas.addEventListener('pointerdown',   onDown);
+    canvas.addEventListener('pointermove',   onMove);
+    canvas.addEventListener('pointerup',     onUp);
+    canvas.addEventListener('pointercancel', onUp);
+
+    let animId = 0;
+    const animate = () => {
+      animId = requestAnimationFrame(animate);
+
+      // Subtle trail fill — low alpha preserves previous frames as ghosts
+      const bg = ctx.createLinearGradient(0, 0, W, H);
+      bg.addColorStop(0, 'rgba(7,12,28,0.22)');
+      bg.addColorStop(1, 'rgba(6,9,20,0.18)');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        r.radius += r.speed; r.alpha -= 0.013; r.lineWidth *= 0.995;
+        if (r.alpha <= 0.02) { ripples.splice(i, 1); continue; }
+
+        // Append hex alpha to the 6-digit hex colour string
+        const hexAlpha = Math.floor(r.alpha * 255).toString(16).padStart(2, '0');
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `${r.color}${hexAlpha}`;
+        ctx.lineWidth   = r.lineWidth;
+        ctx.shadowBlur  = 18;
+        ctx.shadowColor = r.color;
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.x += s.vx; s.y += s.vy;
+        s.vx *= 0.987; s.vy *= 0.987;
+        s.alpha -= 0.018;
+        if (s.alpha <= 0.03) { sparks.splice(i, 1); continue; }
+        const hexAlpha = Math.floor(s.alpha * 255).toString(16).padStart(2, '0');
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fillStyle = `${s.color}${hexAlpha}`;
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Ambient idle ripples when no fingers are active
+      if (pointers.size === 0 && Math.random() < 0.03 && ripples.length < 20) {
+        emitRipple(W * (0.35 + Math.random() * 0.3), H * (0.35 + Math.random() * 0.3), false);
+      }
+    };
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      ro.disconnect();
+      window.removeEventListener('resize', resize);
+      canvas.removeEventListener('pointerdown',   onDown);
+      canvas.removeEventListener('pointermove',   onMove);
+      canvas.removeEventListener('pointerup',     onUp);
+      canvas.removeEventListener('pointercancel', onUp);
+    };
+  }, [activeMode, selectedSeed, getSequence, ensureAudio, playChord, recordAsmmrGlide, recordAsmmrRipple, recordAsmmrTone, registerInteraction, pulseHaptic]);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Mission cards & mode metadata
+  // ══════════════════════════════════════════════════════════════════════════
+
+  const missionCards = [
+    {
+      id: 'modes',      title: 'Explore 3 Modes',
+      progress: `${Math.min(visitedModes.length, 3)}/3`,
+      done: visitedModes.length >= 3,
+    },
+    {
+      id: 'touches',    title: 'Make 40 Touches',
+      progress: `${Math.min(sessionInteractions, 40)}/40`,
+      done: sessionInteractions >= 40,
+    },
+    {
+      id: 'melody',     title: 'Play a DNA Melody',
+      progress: playCount > 0 ? 'Done ✓' : 'Pending',
+      done: playCount > 0,
+    },
+    {
+      id: 'asmmr',      title: 'Seal an ASMMR Ritual',
+      progress: asmmrRitual.completions > 0 ? `${asmmrRitual.completions} cycles` : 'Pending',
+      done: asmmrRitual.completions > 0,
+    },
   ];
 
+  const modes: { id: ModeKey; icon: string; label: string; desc: string }[] = [
+    { id: 'spiral',    icon: '🌀', label: 'DNA Helix',      desc: 'Drag · pinch · tap nodes' },
+    { id: 'mandala',   icon: '🔮', label: 'Sacred Mandala', desc: 'Finger-paint symmetry'    },
+    { id: 'particles', icon: '✨', label: 'Particle Field',  desc: 'Guide constellations'     },
+    { id: 'asmr',      icon: '🌊', label: 'ASMMR Ritual',   desc: 'Flow + learning loop'     },
+    { id: 'sound',     icon: '🎵', label: 'Sound Temple',   desc: 'Tap bars to play notes'   },
+    { id: 'journey',   icon: '🧭', label: 'Guided Journey', desc: 'Classroom setup wizard'   },
+  ];
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Render
+  // ══════════════════════════════════════════════════════════════════════════
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-amber-50">
-      {/* Cosmic Background */}
-      <div className="fixed inset-0 opacity-20 pointer-events-none">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-amber-50 pb-40">
+
+      {/* Ambient background glow — pointer-events-none so it never blocks input */}
+      <div className="fixed inset-0 opacity-20 pointer-events-none" aria-hidden>
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-900 via-transparent to-transparent" />
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-7xl px-3 pb-28 pt-6 sm:px-4 md:px-6">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="mb-4 bg-gradient-to-r from-amber-400 via-amber-200 to-amber-400 bg-clip-text text-4xl font-bold text-transparent animate-pulse sm:text-5xl md:text-6xl">
+      <div className="relative z-10 mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6">
+
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="text-center mb-8 sm:mb-10">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-3 bg-gradient-to-r from-amber-400 via-amber-200 to-amber-400 bg-clip-text text-transparent animate-pulse">
             ✨ Digital DNA ✨
           </h1>
-          <p className="mb-2 text-lg text-blue-300 font-light sm:text-xl md:text-2xl">
-            Sacred Geometry &amp; Sonic Consciousness
+          <p className="text-lg sm:text-2xl text-blue-300 font-light mb-2">
+            Sacred Geometry · Touch · Sonic Flow
           </p>
           {lessonContext && (
             <p className="text-xs text-cyan-300 mt-1">
-              Lesson mode: {lessonContext.studentAlias}
+              Lesson mode — student: <strong>{lessonContext.studentAlias}</strong>
             </p>
           )}
-          <p className="text-sm text-slate-400 italic">
-            Experience through sight, sound, and touch
+          <p className="text-sm text-slate-400 italic mt-1">
+            Works with fingers, stylus, trackpad, and mouse.
           </p>
         </div>
 
-        {/* Mode Selector */}
-        <div className="mb-10 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-4 md:mb-12">
+        {/* ── Mission cards ────────────────────────────────────────────────── */}
+        <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {missionCards.map((m) => (
+            <div
+              key={m.id}
+              className={`rounded-xl border px-4 py-3 transition-colors ${
+                m.done
+                  ? 'border-emerald-400/60 bg-emerald-500/10'
+                  : 'border-slate-700/60 bg-slate-900/40'
+              }`}
+            >
+              <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-0.5">
+                {m.done ? '✓ Completed' : 'Touch Mission'}
+              </div>
+              <div className="text-sm font-semibold text-amber-100">{m.title}</div>
+              <div className="text-xs mt-1 text-cyan-300 font-mono">{m.progress}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Mode selector ─────────────────────────────────────────────────── */}
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {modes.map((mode) => (
             <button
               key={mode.id}
               onClick={() => setActiveMode(mode.id)}
-              className={`group relative min-h-20 px-3 py-3 rounded-2xl transition-all duration-300 sm:px-6 sm:py-4 ${
+              className={`group relative min-h-[104px] rounded-2xl px-3 py-3 transition-all duration-300 ${
                 activeMode === mode.id
-                  ? 'bg-gradient-to-br from-amber-500 to-amber-600 shadow-2xl shadow-amber-500/50 sm:scale-105'
-                  : 'bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/30'
+                  ? 'bg-gradient-to-br from-amber-500 to-amber-600 shadow-xl shadow-amber-500/35 scale-[1.03]'
+                  : 'bg-slate-800/60 hover:bg-slate-700/60 border border-slate-600/40 hover:border-slate-500/60'
               }`}
             >
-              <div className="text-4xl mb-2">{mode.icon}</div>
-              <div className="text-sm font-bold">{mode.label}</div>
-              <div className="text-xs text-slate-400 mt-1">{mode.desc}</div>
+              <div className="text-3xl mb-1">{mode.icon}</div>
+              <div className="text-sm font-bold leading-tight">{mode.label}</div>
+              <div className="text-[11px] text-slate-300 mt-1 leading-tight">{mode.desc}</div>
               {activeMode === mode.id && (
-                <div className="absolute -inset-1 bg-gradient-to-r from-amber-400 to-amber-600 rounded-2xl blur opacity-30 -z-10" />
+                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-600 blur opacity-25 -z-10" />
               )}
             </button>
           ))}
         </div>
 
-        {/* Main Canvas Area */}
-        <div className="mb-12">
-          {/* DNA Spiral */}
+        {/* ══════════════════════════════════════════════════════════════════
+            Active mode panels
+            NOTE: backdrop-blur-sm has been removed from all canvas container
+            divs. It creates a GPU stacking-context conflict that blanks WebGL
+            and 2-D canvas output in many Chrome/Safari/driver combinations.
+        ══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-10">
+
+          {/* ── Spiral ──────────────────────────────────────────────────── */}
           {activeMode === 'spiral' && (
-            <div className="bg-slate-900/50 rounded-2xl border border-blue-800/30 p-4 backdrop-blur-sm sm:rounded-3xl sm:p-8">
-              <div className="text-center mb-6">
-                <h2 className="text-3xl font-bold text-amber-300 mb-2">
+            <div className="bg-slate-900/60 rounded-3xl p-4 sm:p-8 border border-blue-800/30">
+              <div className="text-center mb-5">
+                <h2 className="text-2xl sm:text-3xl font-bold text-amber-300 mb-1">
                   🌀 DNA Helix Explorer
                 </h2>
-                <p className="text-blue-300">
-                  Tap or move across the glowing spheres to hear their song
+                <p className="text-blue-300 text-sm sm:text-base">
+                  Drag to rotate · pinch to zoom · hover/tap glowing spheres for notes
+                </p>
+                <p className="text-slate-500 text-xs mt-1 italic">
+                  Teacher tip: harmony slider controls how many helix arms are visible
                 </p>
               </div>
-              <div className="flex justify-center">
+              {/*
+                FIX: Canvas wrapper has an explicit min-height so the container
+                never collapses to zero before Three.js sets the canvas dimensions.
+                The canvas itself has no w-full class — Three.js manages width/height
+                directly via renderer.setSize(w, h, true).
+              */}
+              <div className="flex justify-center" style={{ minHeight: '300px' }}>
                 <canvas
                   ref={canvasRef}
-                  className="h-auto w-full max-w-full rounded-xl border border-blue-700/30 shadow-2xl shadow-blue-900/50 touch-none"
-                  style={{ width: canvasWidth, height: spiralCanvasHeight }}
+                  className="rounded-xl shadow-2xl shadow-blue-900/60 border border-blue-700/30"
+                  style={{ display: 'block' }}
                 />
               </div>
             </div>
           )}
 
-          {/* 🔮 Sacred Mandala */}
+          {/* ── Mandala ─────────────────────────────────────────────────── */}
           {activeMode === 'mandala' && (
-            <div className="bg-slate-900/50 rounded-2xl border border-purple-800/30 p-4 backdrop-blur-sm sm:rounded-3xl sm:p-8">
-              <div className="text-center mb-6">
-                <h2 className="text-3xl font-bold text-amber-300 mb-2">
+            <div className="bg-slate-900/60 rounded-3xl p-4 sm:p-8 border border-purple-800/30">
+              <div className="text-center mb-5">
+                <h2 className="text-2xl sm:text-3xl font-bold text-amber-300 mb-1">
                   🔮 Sacred Mandala
                 </h2>
-                <p className="text-purple-300">
-                  Draw with your finger to paint your intention onto the pattern
+                <p className="text-purple-300 text-sm sm:text-base">
+                  Press and glide to paint mirrored geometry with instant tones
+                </p>
+                <p className="text-slate-500 text-xs mt-1 italic">
+                  Teacher tip: raise harmony to create more symmetry arms
                 </p>
               </div>
-              <div className="flex justify-center">
+              <div className="flex justify-center" style={{ minHeight: '300px' }}>
                 <canvas
-                  ref={particleCanvasRef}
-                  className="h-auto w-full max-w-full rounded-xl border border-purple-700/30 shadow-2xl shadow-purple-900/50 touch-none"
-                  style={{ width: squareCanvasSize, height: squareCanvasSize }}
+                  ref={surfaceCanvasRef}
+                  className="rounded-xl shadow-2xl shadow-purple-900/60 border border-purple-700/30"
                 />
               </div>
-              <div className="text-center mt-6">
+              <div className="text-center mt-5">
                 <button
                   onClick={clearPaintedPattern}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold text-white shadow-lg shadow-purple-500/50 transition-all"
+                  className="px-5 py-3 bg-purple-600 hover:bg-purple-500 rounded-xl font-bold text-white shadow-lg shadow-purple-500/40 transition-all active:scale-95"
                 >
-                  ✨ Clear Canvas
+                  ✨ Clear Pattern
                 </button>
               </div>
             </div>
           )}
 
-          {/* ✨ Particle Field */}
+          {/* ── Particles ───────────────────────────────────────────────── */}
           {activeMode === 'particles' && (
-            <div className="bg-slate-900/50 rounded-2xl border border-cyan-800/30 p-4 backdrop-blur-sm sm:rounded-3xl sm:p-8">
-              <div className="text-center mb-6">
-                <h2 className="text-3xl font-bold text-amber-300 mb-2">
+            <div className="bg-slate-900/60 rounded-3xl p-4 sm:p-8 border border-cyan-800/30">
+              <div className="text-center mb-5">
+                <h2 className="text-2xl sm:text-3xl font-bold text-amber-300 mb-1">
                   ✨ Particle Field
                 </h2>
-                <p className="text-cyan-300">
-                  Move your hand to guide the particles &mdash; they follow your intention
+                <p className="text-cyan-300 text-sm sm:text-base">
+                  Touch to pull constellations · multiple fingers create interference waves
+                </p>
+                <p className="text-slate-500 text-xs mt-1 italic">
+                  Teacher tip: raise Awareness to make particles respond more strongly to touch
                 </p>
               </div>
-              <div className="flex justify-center">
+              <div className="flex justify-center" style={{ minHeight: '300px' }}>
                 <canvas
-                  ref={particleCanvasRef}
-                  className="h-auto w-full max-w-full rounded-xl border border-cyan-700/30 shadow-2xl shadow-cyan-900/50 touch-none"
-                  style={{ width: squareCanvasSize, height: squareCanvasSize, cursor: isMobileViewport ? "default" : "none" }}
+                  ref={surfaceCanvasRef}
+                  className="rounded-xl shadow-2xl shadow-cyan-900/60 border border-cyan-700/30"
                 />
               </div>
             </div>
           )}
 
-          {/* 🎵 Sound Temple */}
+          {/* ── ASMMR Ritual ────────────────────────────────────────────── */}
+          {activeMode === 'asmr' && (
+            <div className="bg-slate-900/60 rounded-3xl p-4 sm:p-8 border border-emerald-800/30">
+              <div className="text-center mb-5">
+                <h2 className="text-2xl sm:text-3xl font-bold text-amber-300 mb-1">
+                  🌊 ASMMR Learning Ritual
+                </h2>
+                <p className="text-emerald-300 text-sm sm:text-base">
+                  Press and glide on the canvas · complete the 4-phase ritual · seal it
+                </p>
+                <p className="text-slate-500 text-xs mt-1 italic">
+                  Teacher tip: guide the class through all 4 phases before sealing
+                </p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+                {/* Canvas */}
+                <div className="flex justify-center" style={{ minHeight: '300px' }}>
+                  <canvas
+                    ref={surfaceCanvasRef}
+                    className="rounded-xl shadow-2xl shadow-emerald-900/60 border border-emerald-700/30"
+                  />
+                </div>
+
+                {/* Ritual sidebar */}
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/25 p-4 space-y-4">
+
+                  {/* Focus score */}
+                  <div className="rounded-xl border border-emerald-600/30 bg-slate-900/60 p-3">
+                    <div className="text-[10px] uppercase tracking-widest text-emerald-300 mb-1">
+                      Ritual Focus Score
+                    </div>
+                    <div className="flex items-end justify-between mb-2">
+                      <span className="text-2xl font-bold text-emerald-200">{asmmrFocusScore}%</span>
+                      <span className="text-xs text-zinc-400">{asmmrRitual.glideCount} glides</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-slate-800">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-500"
+                        style={{ width: `${asmmrFocusScore}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Phase goals */}
+                  <div className="space-y-2">
+                    {asmmrGoals().map((goal) => {
+                      const done    = goal.current >= goal.target;
+                      const current = Math.min(goal.current, goal.target);
+                      const pct     = clamp(Math.round((current / goal.target) * 100), 0, 100);
+                      return (
+                        <div
+                          key={goal.id}
+                          className={`rounded-xl border p-3 transition-colors ${
+                            done
+                              ? 'border-emerald-400/50 bg-emerald-400/10'
+                              : 'border-slate-700/70 bg-slate-900/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 text-xs mb-2">
+                            <span className="font-semibold text-zinc-100">{goal.title}</span>
+                            <span className={done ? 'text-emerald-300 font-mono' : 'text-zinc-400 font-mono'}>
+                              {current}/{goal.target} {goal.unit}
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-slate-800">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                done
+                                  ? 'bg-gradient-to-r from-emerald-400 to-teal-300'
+                                  : 'bg-gradient-to-r from-cyan-400 to-blue-400'
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <p className="mt-1.5 text-[11px] text-zinc-400">{goal.hint}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Reflection textarea */}
+                  <div className="space-y-1.5">
+                    <label htmlFor="asmmr-reflection" className="text-xs uppercase tracking-widest text-zinc-400">
+                      Phase 4 — Learning Reflection
+                    </label>
+                    <textarea
+                      id="asmmr-reflection"
+                      value={asmmrReflection}
+                      onChange={(e) => setAsmmrReflection(e.target.value)}
+                      placeholder="What changed in your attention while gliding?"
+                      rows={3}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-zinc-100 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400/70"
+                    />
+                    <p className="text-[11px] text-zinc-500">
+                      Minimum {ASMMR_TARGETS.reflectionChars} characters — currently {asmmrReflection.trim().length}
+                    </p>
+                  </div>
+
+                  {/* Seal / Reset buttons */}
+                  <button
+                    onClick={completeAsmmrRitual}
+                    disabled={!asmmrRitualReady}
+                    className={`w-full rounded-xl py-3 text-sm font-semibold transition-all ${
+                      asmmrRitualReady
+                        ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 shadow-lg shadow-emerald-500/30 hover:from-emerald-400 hover:to-cyan-400 active:scale-95'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {asmmrRitualReady ? '🌟 Seal ASMMR Learning Ritual' : 'Complete All 4 Ritual Phases'}
+                  </button>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-zinc-400">
+                      Completed cycles:{' '}
+                      <span className="text-emerald-300 font-semibold">{asmmrRitual.completions}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={resetAsmmrRitual}
+                      className="text-cyan-300 hover:text-cyan-200 underline underline-offset-4 transition-colors"
+                    >
+                      Reset Ritual
+                    </button>
+                  </div>
+
+                  {/* Blessing / feedback message */}
+                  <div className="rounded-xl border border-cyan-600/30 bg-cyan-950/30 p-3">
+                    <p className="text-xs text-cyan-100 leading-relaxed">{asmmrBlessing}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Sound Temple ────────────────────────────────────────────── */}
           {activeMode === 'sound' && (
-            <div className="bg-slate-900/50 rounded-2xl border border-pink-800/30 p-5 backdrop-blur-sm sm:rounded-3xl sm:p-12">
-              <div className="text-center mb-12">
-                <h2 className="text-4xl font-bold text-amber-300 mb-4">
+            <div className="bg-slate-900/60 rounded-3xl p-5 sm:p-10 border border-pink-800/30">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl sm:text-4xl font-bold text-amber-300 mb-2">
                   🎵 Sound Temple
                 </h2>
-                <p className="text-pink-300 text-lg mb-8">
-                  Each digit sings its own note &mdash; listen to the DNA melody
+                <p className="text-pink-300 text-base sm:text-lg mb-1">
+                  Tap any bar to hear its DNA note, or play the full sequence as a melody.
+                </p>
+                <p className="text-slate-500 text-xs italic mb-6">
+                  Teacher tip: change the Seed (bottom bar) to hear how different DNA strands sound
                 </p>
                 <button
                   onClick={playSequence}
                   disabled={isPlaying}
-                  className={`px-12 py-6 rounded-2xl font-bold text-2xl transition-all shadow-2xl ${
+                  className={`px-8 py-4 sm:px-12 sm:py-5 rounded-2xl font-bold text-lg sm:text-2xl transition-all shadow-2xl ${
                     isPlaying
                       ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-pink-500/50 transform hover:scale-105'
+                      : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-pink-500/40 active:scale-95'
                   }`}
                 >
-                  {isPlaying ? '🎵 Playing...' : '▶️ Play DNA Sequence'}
+                  {isPlaying ? '🎵 Playing...' : '▶ Play Full DNA Melody'}
                 </button>
               </div>
-              {/* Sound bars */}
-              <div className="grid grid-cols-10 gap-2 max-w-4xl mx-auto">
-                {getSequence()
-                  .slice(0, 60)
-                  .map((digit, i) => (
+
+              {/*
+                FIX: Use items-end on the grid so all bars align at the bottom
+                (equalizer / bar-chart style). Previously bars grew from the top,
+                making the chart look inverted.
+                Each button uses flex-col-reverse so the note label sits below
+                the bar regardless of bar height.
+              */}
+              <div
+                className="grid grid-cols-10 gap-1 max-w-4xl mx-auto items-end"
+                style={{ height: '170px' }}
+              >
+                {getSequence().slice(0, 60).map((digit, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    className="flex flex-col items-center justify-end h-full group focus:outline-none focus:ring-2 focus:ring-pink-400/60 rounded"
+                    onPointerDown={() => void playDigit(digit)}
+                  >
                     <div
-                      key={i}
-                      className="flex flex-col items-center cursor-pointer group"
-                      onClick={async () => {
-                        if (!audioInitialized) {
-                          await Tone.start();
-                          setAudioInitialized(true);
-                        }
-                        playChord([digit]);
+                      className="w-full rounded-t transition-all group-active:brightness-150 group-hover:brightness-125"
+                      style={{
+                        height:          `${Math.max(8, (digit + 1) * 14)}px`,
+                        backgroundColor: digitToColor(digit),
+                        boxShadow:       `0 0 6px 1px ${digitToColor(digit)}66`,
                       }}
-                    >
-                      <div
-                        className="w-full rounded-t-lg transition-all group-hover:shadow-lg"
-                        style={{
-                          height: `${(digit + 1) * 20}px`,
-                          backgroundColor: digitToColor(digit),
-                        }}
-                      />
-                      <div className="text-xs text-slate-400 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {digitToNote(digit)}
-                      </div>
+                    />
+                    <div className="text-[8px] text-slate-500 mt-0.5 leading-none shrink-0">
+                      {digitToNote(digit)}
                     </div>
-                  ))}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {/* 🧭 Guided Journey */}
+          {/* ── Guided Journey ──────────────────────────────────────────── */}
           {activeMode === 'journey' && (
-            <div className="bg-slate-900/50 rounded-2xl border border-amber-800/30 p-5 backdrop-blur-sm sm:rounded-3xl sm:p-12">
+            <div className="bg-slate-900/60 rounded-3xl p-5 sm:p-10 border border-amber-800/30">
               <div className="max-w-3xl mx-auto">
-                <h2 className="text-4xl font-bold text-amber-300 mb-8 text-center">
+                <h2 className="text-3xl sm:text-4xl font-bold text-amber-300 mb-2 text-center">
                   🧭 Guided Journey
                 </h2>
+                <p className="text-center text-slate-400 text-sm mb-8 italic">
+                  Teacher wizard — configure all parameters then send students into a mode
+                </p>
 
-                <div className="space-y-8">
-                  {/* Step 1 */}
-                  <JourneyStep step={1} icon="&#x1F331;" title="Awaken the Seed" desc="Choose which DNA strand calls to you">
-                    <div className="flex gap-4 justify-center">
+                <div className="space-y-5">
+
+                  <JourneyStep step={1} icon="🌱" title="Awaken the Seed" desc="Choose which DNA strand the class will explore">
+                    <div className="flex gap-3 justify-center flex-wrap">
                       {(['red', 'black', 'blue'] as SeedKey[]).map((seed) => (
                         <button
                           key={seed}
                           onClick={() => setSelectedSeed(seed)}
-                          className={`px-8 py-4 rounded-xl font-bold text-lg transition-all ${
+                          className={`px-6 py-3 rounded-xl font-bold transition-all ${
                             selectedSeed === seed
-                              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/50'
+                              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/40 scale-105'
                               : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                           }`}
                         >
-                          {seed === 'red' ? 'Fire' : seed === 'blue' ? 'Water' : 'Earth'}
+                          {seed === 'red' ? '🔴 Fire' : seed === 'blue' ? '🔵 Water' : '⚫ Earth'}
                         </button>
                       ))}
                     </div>
+                    <p className="text-center text-xs text-slate-500 mt-2">
+                      Each seed is a unique 60-digit number sequence with its own colour and sound fingerprint.
+                    </p>
                   </JourneyStep>
 
-                  {/* Step 2 */}
-                  <JourneyStep step={2} icon="&#x1F3BC;" title="Set the Rhythm" desc="How fast does consciousness pulse?">
-                    <div className="space-y-3">
+                  <JourneyStep step={2} icon="🎼" title="Set the Rhythm" desc="Controls the melody playback speed in Sound Temple">
+                    <div className="space-y-2">
                       <input
-                        type="range"
-                        min="60"
-                        max="180"
-                        value={tempo}
+                        type="range" min="60" max="180" value={tempo}
                         onChange={(e) => setTempo(parseInt(e.target.value, 10))}
-                        className="w-full h-3 rounded-lg appearance-none cursor-pointer bg-slate-700"
+                        className="w-full h-3 rounded-lg appearance-none cursor-pointer bg-slate-700 accent-amber-400"
                       />
-                      <div className="text-center text-2xl font-bold text-amber-400">
-                        {tempo} BPM
-                      </div>
+                      <div className="text-center text-2xl font-bold text-amber-400 font-mono">{tempo} BPM</div>
                     </div>
                   </JourneyStep>
 
-                  {/* Step 3 */}
-                  <JourneyStep step={3} icon="&#x2728;" title="Deepen Consciousness" desc="How aware should the particles be?">
-                    <div className="space-y-3">
+                  <JourneyStep step={3} icon="✨" title="Awareness Level" desc="How strongly touch pulls the particle field — higher = more dramatic">
+                    <div className="space-y-2">
                       <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={consciousness}
+                        type="range" min="0" max="100" value={consciousness}
                         onChange={(e) => setConsciousness(parseInt(e.target.value, 10))}
-                        className="w-full h-3 rounded-lg appearance-none cursor-pointer bg-slate-700"
+                        className="w-full h-3 rounded-lg appearance-none cursor-pointer bg-slate-700 accent-cyan-400"
                       />
-                      <div className="text-center text-2xl font-bold text-cyan-400">
-                        {consciousness}%
-                      </div>
+                      <div className="text-center text-2xl font-bold text-cyan-400 font-mono">{consciousness}%</div>
                     </div>
                   </JourneyStep>
 
-                  {/* Step 4 */}
-                  <JourneyStep step={4} icon="&#x1F300;" title="Choose Sacred Number" desc="How many arms in the spiral of life?">
-                    <div className="flex gap-3 justify-center">
+                  <JourneyStep step={4} icon="🔢" title="Sacred Number (Harmony)" desc="Sets the symmetry arms in Mandala and helix count in Spiral">
+                    <div className="flex gap-2 justify-center flex-wrap">
                       {[3, 5, 7, 9, 12].map((num) => (
                         <button
                           key={num}
                           onClick={() => setHarmony(num)}
-                          className={`w-16 h-16 rounded-full font-bold text-xl transition-all ${
+                          className={`w-14 h-14 rounded-full font-bold text-lg transition-all ${
                             harmony === num
-                              ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/50 scale-110'
+                              ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/40 scale-110'
                               : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                           }`}
                         >
@@ -787,121 +1641,134 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                     </div>
                   </JourneyStep>
 
-                  {/* Step 5 */}
-                  <JourneyStep step={5} icon="&#x1F680;" title="Begin Exploration" desc="Choose your path of discovery">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                      <button
-                        onClick={() => setActiveMode('spiral')}
-                        className="px-6 py-4 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-blue-500/50 hover:scale-105 transition-all"
-                      >
-                        Enter the Helix
-                      </button>
-                      <button
-                        onClick={() => setActiveMode('mandala')}
-                        className="px-6 py-4 bg-gradient-to-br from-purple-600 to-purple-700 rounded-xl font-bold text-white shadow-lg shadow-purple-500/50 hover:scale-105 transition-all"
-                      >
-                        Paint the Mandala
-                      </button>
-                      <button
-                        onClick={() => setActiveMode('particles')}
-                        className="px-6 py-4 bg-gradient-to-br from-cyan-600 to-cyan-700 rounded-xl font-bold text-white shadow-lg shadow-cyan-500/50 hover:scale-105 transition-all"
-                      >
-                        Guide the Particles
-                      </button>
-                      <button
-                        onClick={() => setActiveMode('sound')}
-                        className="px-6 py-4 bg-gradient-to-br from-pink-600 to-pink-700 rounded-xl font-bold text-white shadow-lg shadow-pink-500/50 hover:scale-105 transition-all"
-                      >
-                        Hear the Song
-                      </button>
+                  <JourneyStep step={5} icon="🚀" title="Launch a Mode" desc="Send the class into their activity path">
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { mode: 'spiral',    label: '🌀 Enter Helix',      cls: 'from-blue-600   to-blue-700   shadow-blue-500/40'   },
+                        { mode: 'mandala',   label: '🔮 Paint Mandala',    cls: 'from-purple-600 to-purple-700 shadow-purple-500/40' },
+                        { mode: 'particles', label: '✨ Guide Particles',  cls: 'from-cyan-600   to-cyan-700   shadow-cyan-500/40'   },
+                        { mode: 'asmr',      label: '🌊 ASMMR Ritual',    cls: 'from-emerald-600 to-emerald-700 shadow-emerald-500/40' },
+                      ].map(({ mode, label, cls }) => (
+                        <button
+                          key={mode}
+                          onClick={() => setActiveMode(mode as ModeKey)}
+                          className={`px-4 py-3 bg-gradient-to-br ${cls} rounded-xl font-bold text-white shadow-lg active:scale-95 transition-all`}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   </JourneyStep>
+
                 </div>
               </div>
             </div>
           )}
         </div>
 
-        {/* Universal Controls */}
-        <div className="fixed left-1/2 z-40 w-[min(95vw,56rem)] -translate-x-1/2 rounded-2xl border border-amber-600/30 bg-slate-900/90 px-3 py-3 shadow-2xl shadow-amber-500/20 backdrop-blur-lg bottom-[calc(1rem+env(safe-area-inset-bottom))] md:w-auto md:rounded-full md:px-8 md:py-4 md:bottom-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          <div className="flex flex-wrap items-center justify-center gap-3 md:flex-nowrap md:gap-8">
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">DNA:</span>
+        {/* ── Fixed bottom control bar ─────────────────────────────────────── */}
+        <div className="fixed left-1/2 z-40 w-[min(96vw,62rem)] -translate-x-1/2 rounded-2xl border border-amber-600/30 bg-slate-900/95 px-3 py-3 shadow-2xl shadow-amber-500/20 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] md:rounded-full md:px-7 md:py-4 md:w-auto">
+          <div className="flex flex-wrap items-center justify-center gap-3 md:flex-nowrap md:gap-6">
+
+            {/* Seed selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm text-slate-400">Seed</span>
               {(['red', 'blue', 'black'] as SeedKey[]).map((seed) => (
                 <button
                   key={seed}
                   onClick={() => setSelectedSeed(seed)}
-                  className={`w-10 h-10 rounded-full transition-all ${
-                    selectedSeed === seed ? 'scale-125 shadow-lg' : 'opacity-50 hover:opacity-100'
+                  title={seed === 'red' ? 'Fire' : seed === 'blue' ? 'Water' : 'Earth'}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full transition-all ${
+                    selectedSeed === seed
+                      ? 'scale-110 shadow-lg ring-2 ring-white/50'
+                      : 'opacity-55 hover:opacity-90'
                   }`}
                   style={{
-                    backgroundColor:
-                      seed === 'red' ? '#ff4444' : seed === 'blue' ? '#4444ff' : '#333333',
+                    backgroundColor: seed === 'red' ? '#ef4444' : seed === 'blue' ? '#3b82f6' : '#374151',
                   }}
                 />
               ))}
             </div>
-            <div className="hidden h-8 w-px bg-slate-600 md:block" />
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">Harmony:</span>
-              <div className="text-amber-400 font-bold text-lg">{harmony}</div>
+
+            <div className="h-7 w-px bg-slate-700 hidden md:block" />
+
+            {/* Harmony display */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm text-slate-400">Harmony</span>
+              <span className="text-amber-400 font-bold font-mono">{harmony}</span>
             </div>
-            <div className="hidden h-8 w-px bg-slate-600 md:block" />
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">Awareness:</span>
-              <div className="text-cyan-400 font-bold text-lg">{consciousness}%</div>
+
+            <div className="h-7 w-px bg-slate-700 hidden md:block" />
+
+            {/* Awareness display */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm text-slate-400">Awareness</span>
+              <span className="text-cyan-400 font-bold font-mono">{consciousness}%</span>
             </div>
-            <div className="hidden h-8 w-px bg-slate-600 md:block" />
+
+            <div className="h-7 w-px bg-slate-700 hidden md:block" />
+
+            {/* Audio status */}
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span
+                className={`inline-block w-2 h-2 rounded-full ${audioReady ? 'bg-emerald-400' : 'bg-slate-600'}`}
+              />
+              <span>{audioReady ? 'Audio on' : 'Tap to enable audio'}</span>
+            </div>
+
+            <div className="h-7 w-px bg-slate-700 hidden md:block" />
+
+            {/* Play button */}
             <button
-              onClick={initAudioAndPlay}
+              onClick={playSequence}
               disabled={isPlaying}
-              className={`px-6 py-2 rounded-full font-bold transition-all ${
+              className={`px-5 py-2 rounded-full font-bold transition-all ${
                 isPlaying
                   ? 'bg-slate-700 text-slate-400'
-                  : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-lg shadow-pink-500/30'
+                  : 'bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white shadow-lg shadow-pink-500/30 active:scale-95'
               }`}
             >
-              {isPlaying ? '🎵' : '▶️'} Play
+              {isPlaying ? '🎵 Playing' : '▶ Play'}
             </button>
+
           </div>
         </div>
 
-        {/* Info Panel */}
-        <div className="mt-12 text-center">
-          <details className="bg-slate-900/30 rounded-xl p-6 border border-slate-700/30">
-            <summary className="cursor-pointer text-lg font-bold text-amber-300 hover:text-amber-200">
+        {/* ── About section ────────────────────────────────────────────────── */}
+        <div className="mt-10 text-center">
+          <details className="bg-slate-900/40 rounded-xl p-5 sm:p-6 border border-slate-700/30 text-left">
+            <summary className="cursor-pointer text-lg font-bold text-amber-300 hover:text-amber-200 transition-colors text-center list-none">
               📖 About This Experience
             </summary>
-            <div className="mt-6 text-left text-slate-300 space-y-4 max-w-3xl mx-auto">
+            <div className="mt-5 text-slate-300 space-y-3 max-w-3xl mx-auto text-sm sm:text-base">
               <p>
-                <strong className="text-amber-400">✨ Digital DNA ✨</strong> is a living
-                geometric and sonic consciousness &mdash; three primordial sequences (Fire,
-                Water, Earth) that express themselves through sacred patterns and sound.
+                <strong className="text-amber-400">Digital DNA</strong> turns three sacred number
+                sequences into geometry and sound you can explore with touch, stylus, or mouse.
+                Every digit is simultaneously a <strong className="text-blue-400">shape + colour</strong> and
+                a <strong className="text-pink-400">musical note</strong>.
               </p>
               <p>
-                Each digit (0-9) is both a{' '}
-                <strong className="text-blue-400">visual form</strong> (color, position in
-                space) and a <strong className="text-pink-400">musical tone</strong> (C, D,
-                E, F, G, A, B, C, D, E). Together they create a{' '}
-                <strong className="text-purple-400">living symphony of geometry</strong>.
+                <strong className="text-emerald-400">ASMMR Ritual</strong> guides students through a
+                4-phase calming sequence — ripple attunement, sonic resonance, sustained glide, and
+                written reflection — that ends with a focus score and a blessing message.
               </p>
               <p>
-                <strong className="text-cyan-400">Explore with your senses:</strong> Touch
-                the DNA helix and hear individual notes. Paint your intention onto the sacred
-                mandala. Guide the particle field with your hand. Listen to the sequence as a
-                melody. Follow the guided journey to discover your own path.
+                Use the <strong className="text-purple-400">Guided Journey</strong> as a classroom
+                setup wizard before sending students into any interactive mode. The seed, harmony,
+                awareness level, and tempo all carry over.
               </p>
-              <p className="text-sm text-slate-500 italic">
-                Built with love on the Moss60 cryptographic framework, Lukus modulation
-                layer, THREE.js for sacred geometry, and Tone.js for sonic consciousness.
+              <p className="text-slate-500 text-xs">
+                Sessions auto-track: modes visited, total interactions, melody plays, and ASMMR ritual completions.
               </p>
             </div>
           </details>
         </div>
 
-        {/* Lesson mode: Finish button */}
+        {/* ── Lesson overlays ──────────────────────────────────────────────── */}
+
+        {/* Finish lesson button */}
         {lessonContext && preAcknowledged && !showPostPrompt && (
-          <div className="fixed bottom-6 right-6 z-50">
+          <div className="fixed right-4 z-50 bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-6">
             <button
               type="button"
               onClick={() => {
@@ -911,23 +1778,23 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                   completeLesson(lessonContext.lessonId, lessonContext.studentAlias);
                 }
               }}
-              className="px-6 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm shadow-lg shadow-emerald-500/30 transition"
+              className="px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm shadow-lg shadow-emerald-500/30 transition-all active:scale-95"
             >
               Finish Lesson
             </button>
           </div>
         )}
 
-        {/* Pre-prompt overlay */}
+        {/* Pre-prompt modal */}
         {lessonContext?.prePrompt && !preAcknowledged && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-            <div className="max-w-md mx-4 rounded-2xl border border-cyan-500/30 bg-slate-900 p-6 space-y-4">
-              <p className="text-lg font-semibold text-cyan-200">Before you begin...</p>
-              <p className="text-sm text-zinc-300">{lessonContext.prePrompt}</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm">
+            <div className="max-w-md mx-4 rounded-2xl border border-cyan-500/30 bg-slate-900 p-6 space-y-4 shadow-2xl">
+              <p className="text-lg font-semibold text-cyan-200">Before you begin&hellip;</p>
+              <p className="text-sm text-zinc-300 leading-relaxed">{lessonContext.prePrompt}</p>
               <button
                 type="button"
                 onClick={() => setPreAcknowledged(true)}
-                className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm transition"
+                className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-sm transition-all active:scale-95"
               >
                 Got it, let&apos;s explore!
               </button>
@@ -935,17 +1802,18 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
           </div>
         )}
 
-        {/* Post-prompt dialog */}
+        {/* Post-prompt modal */}
         {showPostPrompt && lessonContext?.postPrompt && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
-            <div className="max-w-md mx-4 rounded-2xl border border-emerald-500/30 bg-slate-900 p-6 space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm">
+            <div className="max-w-md mx-4 rounded-2xl border border-emerald-500/30 bg-slate-900 p-6 space-y-4 shadow-2xl">
               <p className="text-lg font-semibold text-emerald-200">Reflect on your exploration</p>
-              <p className="text-sm text-zinc-300">{lessonContext.postPrompt}</p>
+              <p className="text-sm text-zinc-300 leading-relaxed">{lessonContext.postPrompt}</p>
               <textarea
                 value={postResponse}
                 onChange={(e) => setPostResponse(e.target.value)}
-                placeholder="Share your thoughts..."
-                className="w-full h-24 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-zinc-100 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                placeholder="Share your thoughts…"
+                rows={4}
+                className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-zinc-100 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
               <button
                 type="button"
@@ -956,43 +1824,45 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                   completeLesson(lessonContext.lessonId, lessonContext.studentAlias);
                   setShowPostPrompt(false);
                 }}
-                className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm transition"
+                className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm transition-all active:scale-95"
               >
                 Submit &amp; Complete
               </button>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );
 }
 
-/* ─── tiny helper component ─── */
+// ─── JourneyStep sub-component ────────────────────────────────────────────────
+
+/**
+ * Reusable step card used in the Guided Journey mode.
+ * Keeps the numbered step header consistent and reduces repetition.
+ */
 function JourneyStep({
-  step,
-  icon,
-  title,
-  desc,
-  children,
+  step, icon, title, desc, children,
 }: {
   step: number;
   icon: string;
   title: string;
   desc: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
-    <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
+    <div className="bg-slate-800/50 rounded-2xl p-5 border border-slate-700/50">
       <div className="flex items-start gap-4 mb-4">
-        <div className="text-5xl" dangerouslySetInnerHTML={{ __html: icon }} />
-        <div className="flex-1">
-          <div className="text-sm text-slate-400 mb-1">Step {step}</div>
-          <h3 className="text-2xl font-bold text-amber-300 mb-2">{title}</h3>
-          <p className="text-blue-300">{desc}</p>
+        <div className="text-4xl sm:text-5xl shrink-0">{icon}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs text-slate-500 mb-0.5 uppercase tracking-widest">Step {step}</div>
+          <h3 className="text-xl sm:text-2xl font-bold text-amber-300 mb-1 leading-tight">{title}</h3>
+          <p className="text-blue-300 text-sm sm:text-base leading-relaxed">{desc}</p>
         </div>
       </div>
-      <div className="mt-4">{children}</div>
+      <div className="mt-3">{children}</div>
     </div>
   );
 }
