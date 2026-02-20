@@ -2,14 +2,6 @@
 
 Use this runbook to execute the school pilot safely and consistently.
 
-## Start-pass criteria (pre-class go/no-go)
-Do **not** begin class until all are true:
-- Classroom Mode is enabled and stable.
-- `Offline Verified` is visible.
-- Self-check reports ready/pass.
-- Teacher controls are available (reset, pause/sleep, end session, volume/mute).
-- Prior pet state loads correctly.
-
 ## 1. Before session (5 minutes)
 - Launch latest frozen Pilot v1 build.
 - Turn on **Classroom Mode**.
@@ -70,29 +62,3 @@ Escalate before next class if any are true:
 - Teacher controls unavailable.
 
 **Escalation package:** timestamp, device type, action taken, screenshot (if possible), and short symptom summary.
-
-
-## 8. Test checklist (operator sign-off)
-Complete after dry-run or live session block:
-
-- [ ] Startup readiness test passed (3/3 runs).
-- [ ] 20-minute classroom timing test passed (2/2 runs).
-- [ ] Save/recovery resilience test passed (all 3 scenarios).
-- [ ] Offline validation demonstrated to ICT.
-- [ ] Evidence bundle saved (notes, screenshots, timestamps).
-
-**Sign-off fields:** date, operator, device profile, pass/fail, escalation required (Y/N).
-
-## 9. Evidence capture template (run/debug/test/screenshot)
-Fill this immediately after execution:
-
-| Field | Entry |
-|---|---|
-| Run command + URL | |
-| Device/profile | |
-| Start time / End time | |
-| Debug notes (issues + fixes) | |
-| Test results summary | |
-| Screenshot file names | |
-| Operator sign-off | |
-

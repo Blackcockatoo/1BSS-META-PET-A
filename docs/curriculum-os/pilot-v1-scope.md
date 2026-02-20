@@ -44,15 +44,6 @@ Ship a classroom-safe, ICT-verifiable pilot build that can run a 20-minute sessi
 - Advanced projector mode enhancements beyond baseline readability.
 - Extended analytics/reporting features.
 
-## Start-pass criteria (go/no-go before students enter)
-A session should **not** start unless all checks pass:
-
-1. Classroom Mode can be enabled and remains active.
-2. `Offline Verified` indicator is visible.
-3. Offline self-check returns ready/pass state.
-4. Teacher controls are present (reset, pause/sleep, end session, volume/mute).
-5. Last-known pet state loads successfully on launch.
-
 ## Must-pass release criteria (Day 1 freeze)
 The pilot build is **not** releasable unless all items pass:
 
@@ -67,49 +58,6 @@ The pilot build is **not** releasable unless all items pass:
 3. **No pet-state loss on save/recovery**
    - Pet state remains intact after app restart.
    - Recovery flow preserves previous valid state after interrupted save/corrupt payload simulation.
-
-## Test protocol (must be executed before pilot release)
-Run these checks and store evidence in the pilot folder:
-
-1. **Startup readiness test (x3 runs)**
-   - Launch app, enable Classroom Mode, verify `Offline Verified`, run self-check.
-   - Pass if all five start-pass criteria are true in all 3 runs.
-
-2. **20-minute classroom timing test (x2 runs)**
-   - Start session from launch and complete end-session ritual.
-   - Pass if first interaction starts in <60 seconds and session completes without control loss.
-
-3. **Save/recovery resilience test (x3 scenarios)**
-   - Scenario A: normal close/reopen.
-   - Scenario B: interrupted close during active session.
-   - Scenario C: invalid/corrupt saved payload simulation.
-   - Pass if last valid pet state is preserved in all scenarios.
-
-4. **Offline validation test (x1 with ICT observer)**
-   - Demonstrate self-check + provide DevTools/firewall verification flow.
-   - Pass if ICT confirms no required outbound network dependency.
-
-## Run + debug + test + screenshot evidence standard
-Every pilot candidate build must include a single evidence bundle with four artifacts:
-
-1. **Run evidence**
-   - Command used to launch: `npm run dev`.
-   - Record app URL, launch timestamp, and device profile.
-
-2. **Debug evidence**
-   - Record any warnings/errors observed during launch/session.
-   - For each issue: symptom, reproduction step, resolution, retest result.
-
-3. **Test evidence**
-   - Attach completed test protocol results (run counts + pass/fail).
-   - Include command outputs for lint/test checks.
-
-4. **Screenshot evidence**
-   - Capture at minimum:
-     - Classroom Mode active state
-     - `Offline Verified` visible state
-     - End Session confirmation state
-   - Save files with timestamp and device label.
 
 ## Acceptance evidence required
 - Test notes for launch/session/restart on at least one low-spec device profile.
