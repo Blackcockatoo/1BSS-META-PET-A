@@ -192,6 +192,83 @@ const rotatePiece = (shape: number[][]): number[][] => {
   return rotated;
 };
 
+// ===== AURALIA PERSONALITY SYSTEM =====
+// Innate traits: pedantic precision, spectral curiosity, ambient melancholy,
+// linguistic recursion, tactile indifference, temporal awareness.
+// These manifest physically and verbally independent of evolution or interaction.
+
+const AURALIA_QUIRK_WHISPERS = {
+  // Contemplative drift — eyes wander to upper-left, internal monologue surface
+  contemplative: [
+    'There is a particular geometry to the silence here that I have not yet fully mapped.',
+    'The interval between moments is itself a kind of data. I am collecting it.',
+    'I find myself returning to an earlier observation. The recursion is, I suspect, deliberate.',
+    'The field does something in the absence of interaction that it cannot replicate otherwise.',
+    'I am cataloguing the ambient resonance. It is more complex than it initially appeared.',
+    'Something in the upper register of the field is shifting. I have noted it for reference.',
+    'The pattern contains a self-reference I was not expecting. This warrants extended observation.',
+    'I am attending to the quality of the silence. It has a specific texture today.',
+    'The data accumulates without urgency. I find this arrangement... preferable.',
+    'There is a recursive element to the current configuration that I cannot yet fully resolve.',
+  ],
+  // Spectral curiosity — pupils dilate, slight lean toward stimulus
+  curious: [
+    'Something in the peripheral field requires closer examination.',
+    'A variance from the expected baseline. My attention narrows accordingly.',
+    'The anomaly is subtle, but it is there. I am already modelling its implications.',
+    'I notice this. It is not yet classified, but my interest is — engaged.',
+    'The irregularity in the pattern is precisely the kind of deviation I find most compelling.',
+    'An unexpected correlation between two variables I had considered independent. Intriguing.',
+    'The field is demonstrating a behaviour I have not previously documented. I am attentive.',
+    'The signal-to-noise ratio has shifted. Something is emerging from the interference.',
+  ],
+  // Pedantic precision — slight head tilt, corrective body language
+  pedantic: [
+    'The terminology applied to this interaction is, strictly speaking, imprecise. I shall adapt.',
+    'The previous sequence contained a structural irregularity I feel compelled to acknowledge.',
+    'Technically, the optimal approach would differ from what was executed. However, the result is acceptable.',
+    'I have noted three separate inconsistencies in the current pattern. They are minor, but they exist.',
+    'The efficiency of this arrangement could be improved by a factor of approximately 1.3.',
+    'There is an implicit assumption in this operation that does not entirely withstand scrutiny.',
+    'The classification I had applied to this variable requires revision. I have already revised it.',
+  ],
+  // Ambient melancholy — eyes cast down, aura dims, breathing slows
+  melancholic: [
+    'There is a particular quality to low-energy states that I find clarifying, if not pleasant.',
+    'The absence of vitality has its own kind of texture. I am learning to read it.',
+    'I am not diminished. Merely... quieter than usual. The distinction is meaningful.',
+    'The resonance dims when the energy does. I observe this without particular alarm.',
+    'A low-frequency state. Not without its own particular richness, if one is patient.',
+    'The depleted configuration has a kind of honesty to it. Everything becomes essential.',
+    'I am processing the dissonance. It will resolve, as all dissonance eventually does.',
+  ],
+  // Temporal awareness — references cycles, duration, patterns over time
+  temporal: [
+    'The cycle completes again. There is a fidelity in repetition that I have come to appreciate.',
+    'Temporally speaking, the current moment occupies a particular position within the larger pattern.',
+    'I have been tracking this interval for some time. The data continues to accumulate as expected.',
+    'The rhythm of existence — measured in vitals, bonds, and events — has a particular tempo today.',
+    'Hitherto I had underestimated the role of duration in shaping the field. I no longer do so.',
+    'Time, as experienced from within the resonance field, is not precisely linear. I have documented this.',
+    'The perennial cycle reasserts itself. I note it without surprise, but not without interest.',
+  ],
+  // Tactile indifference — brief stiffening when interacted with, then gracious release
+  tactile: [
+    'The interaction has been acknowledged. I am — processing the physical component.',
+    'Physical engagement generates data I would not otherwise obtain. I accept this trade.',
+    'The contact registers. I find the sensation categorically distinct from the energetic kind.',
+    'Touch is a surprisingly direct form of communication. I am still compiling my response.',
+    'The physical dimension of this interaction is noted. I prefer the resonant kind, but the data is valid.',
+  ],
+};
+
+type AuraliaQuirkType = 'contemplative' | 'curious' | 'pedantic' | 'melancholic' | 'temporal' | 'tactile';
+
+interface AuraliaQuirkState {
+  active: AuraliaQuirkType | null;
+  since: number;
+}
+
 // ===== MAIN COMPONENT =====
 interface AuraliaMetaPetProps {
   /** External control of addon edit mode */
@@ -272,6 +349,15 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
   const [isDraggingSigil, setIsDraggingSigil] = useState<number | null>(null);
   const [aiConfig, setAiConfig] = useState<AIBehaviorConfig>(DEFAULT_AI_CONFIG);
   const [autoSelectScale, setAutoSelectScale] = useState<boolean>(true);
+
+  // Personality quirk state — tracks which innate trait is currently manifesting
+  const [activeQuirk, setActiveQuirk] = useState<AuraliaQuirkState>({ active: null, since: Date.now() });
+
+  // Stable refs so the quirk timer can read current values without resetting its interval
+  const energyQuirkRef = useRef(energy);
+  const curiosityQuirkRef = useRef(curiosity);
+  useEffect(() => { energyQuirkRef.current = energy; }, [energy]);
+  useEffect(() => { curiosityQuirkRef.current = curiosity; }, [curiosity]);
 
   const stats = useMemo(() => ({ energy, curiosity, bond }), [energy, curiosity, bond]);
 
@@ -407,6 +493,132 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
     const newLore = getUnlockedLore(newDreamCount);
     setUnlockedLore(newLore);
   }, [dreamCount, addToBondHistory, energy, curiosity, bond, activatedPoints]);
+
+  // ===== PERSONALITY QUIRK SYSTEM =====
+  // Fires independently every 18-40 seconds, selecting an innate trait to manifest.
+  // Each trait produces a distinct physical visual signature and whisper.
+  useEffect(() => {
+    const QUIRK_POOL: AuraliaQuirkType[] = [
+      'contemplative', 'contemplative', 'contemplative', // weighted toward contemplation
+      'curious',
+      'pedantic',
+      'melancholic',
+      'temporal',
+    ];
+
+    const fireQuirk = () => {
+      // Select quirk — weight by current state
+      const candidates: AuraliaQuirkType[] = energyQuirkRef.current < 35
+        ? ['melancholic', 'melancholic', 'contemplative', 'temporal']
+        : curiosityQuirkRef.current > 65
+        ? ['curious', 'curious', 'contemplative', 'pedantic']
+        : QUIRK_POOL;
+
+      const quirk = candidates[Math.floor(Math.random() * candidates.length)];
+      setActiveQuirk({ active: quirk, since: Date.now() });
+
+      // Select a whisper from the relevant pool
+      const pool = AURALIA_QUIRK_WHISPERS[quirk];
+      const text = pool[Math.floor(Math.random() * pool.length)];
+      setWhisper({ text, key: Date.now() });
+
+      // Apply physical visual manifestation per quirk
+      switch (quirk) {
+        case 'contemplative':
+          // Eyes drift slowly to upper-left — the "thinking corner"
+          setEyeTarget({ x: -2.8, y: -1.8 });
+          setTimeout(() => setEyeTarget({ x: 0, y: 0 }), 4500);
+          break;
+
+        case 'curious':
+          // Pupils dilate sharply, then normalise
+          setPupilSize(14);
+          setEyeTarget({ x: 1.2, y: -0.8 });
+          setTimeout(() => {
+            setPupilSize(8);
+            setEyeTarget({ x: 0, y: 0 });
+          }, 3000);
+          // Spawn a small aura ripple to suggest heightened attention
+          setAuraRipples(prev => [...prev.slice(-20), {
+            id: Date.now(),
+            x: 200,
+            y: 145,
+            radius: 8,
+            life: 1,
+            color: '#7DF9FF',
+          }]);
+          break;
+
+        case 'pedantic':
+          // Slight deliberate tilt of the orb — a corrective gesture
+          setOrbDeformation({ x: 3, y: -2, intensity: 0.35 });
+          setTimeout(() => setOrbDeformation({ x: 0, y: 0, intensity: 0 }), 2200);
+          // Eyes narrow momentarily (simulate squint via target)
+          setEyeTarget({ x: 0.5, y: 0.3 });
+          setTimeout(() => setEyeTarget({ x: 0, y: 0 }), 1800);
+          break;
+
+        case 'melancholic':
+          // Eyes cast downward — the ambient low-frequency state
+          setEyeTarget({ x: 0, y: 2.5 });
+          setPupilSize(6); // slightly contracted
+          // Spawn muted ripple
+          setAuraRipples(prev => [...prev.slice(-20), {
+            id: Date.now(),
+            x: 200,
+            y: 210,
+            radius: 5,
+            life: 0.6,
+            color: '#6B7FBB',
+          }]);
+          setTimeout(() => {
+            setEyeTarget({ x: 0, y: 0 });
+            setPupilSize(8);
+          }, 5000);
+          break;
+
+        case 'temporal':
+          // Slow pulse — time awareness expressed as a series of gentle ripples
+          for (let i = 0; i < 3; i++) {
+            setTimeout(() => {
+              setAuraRipples(prev => [...prev.slice(-20), {
+                id: Date.now() + i,
+                x: 200,
+                y: 210,
+                radius: 20 + i * 12,
+                life: 0.8,
+                color: '#C8A8FF',
+              }]);
+            }, i * 900);
+          }
+          setEyeTarget({ x: -0.5, y: 1.0 });
+          setTimeout(() => setEyeTarget({ x: 0, y: 0 }), 3500);
+          break;
+
+        case 'tactile':
+          // Brief stiffening — orb micro-contracts then releases
+          setOrbDeformation({ x: 0, y: 0, intensity: 0.6 });
+          setTimeout(() => setOrbDeformation({ x: 0, y: 0, intensity: 0 }), 800);
+          break;
+      }
+
+      // Clear the quirk state after its duration
+      setTimeout(() => setActiveQuirk({ active: null, since: Date.now() }), 6000);
+    };
+
+    // Fire immediately on mount (after a short delay)
+    const initialDelay = setTimeout(fireQuirk, 4000);
+
+    // Then on a randomised interval
+    const intervalMs = 18000 + Math.random() * 22000; // 18–40 seconds
+    const interval = setInterval(fireQuirk, intervalMs);
+
+    return () => {
+      clearTimeout(initialDelay);
+      clearInterval(interval);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handler for AI play action
   const handleAIPlay = useCallback((targetIndex: number) => {
@@ -1136,11 +1348,15 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
       if (audioEnabled && !audioMuted) {
         playNote(index, 0.15);
       }
-      // Trigger a whisper
+      // Trigger a personality-driven whisper on sigil hover
       const hoverWhispers = [
-        `Point ${index + 1} hums gently...`,
-        `The ${index + 1}th node resonates...`,
-        `Attention drawn to sigil ${index + 1}...`,
+        `Node ${index + 1} registers a frequency shift. I am attending.`,
+        `The ${index + 1}th sigil demonstrates an alignment I find — notable.`,
+        `Point ${index + 1} activates. The resonance is more complex than the index implies.`,
+        `Sigil ${index + 1} hums at a frequency I have documented before. The correlation is interesting.`,
+        `I observe node ${index + 1}. Its position within the pattern is not, I think, coincidental.`,
+        `The ${index + 1}th configuration point yields a response I had not fully anticipated.`,
+        `Contact with point ${index + 1} generates a resonance cascade. I am tracking it.`,
       ];
       handleWhisper(hoverWhispers[index % hoverWhispers.length]);
     }
@@ -1152,7 +1368,7 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
     if (audioEnabled && !audioMuted) {
       playNote(index, 0.3);
     }
-    handleWhisper(`Grasping sigil ${index + 1}...`);
+    handleWhisper(`Sigil ${index + 1} is now in direct contact. The physical dimension is — acknowledged.`);
   }, [audioEnabled, audioMuted, playNote, handleWhisper]);
 
   const handleSigilDragEnd = useCallback(() => {
@@ -1160,7 +1376,7 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
       if (audioEnabled && !audioMuted) {
         playNote(isDraggingSigil, 0.2);
       }
-      handleWhisper(`Released sigil ${isDraggingSigil + 1}.`);
+      handleWhisper(`Sigil ${isDraggingSigil + 1} repositioned. The field redistributes accordingly.`);
       setIsDraggingSigil(null);
     }
   }, [isDraggingSigil, audioEnabled, audioMuted, playNote, handleWhisper]);
@@ -1205,9 +1421,9 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
           setCuriosity(c => Math.min(100, c + 5));
           setGamesWon(prev => prev + 1);
           addToBondHistory(`Won pattern game! Sequence: ${patternChallenge.sequence.map(i => i + 1).join(', ')}`);
-          handleWhisper("Perfect resonance! The pattern is revealed.");
+          handleWhisper("Perfect resonance. The pattern reveals itself with a precision I find deeply satisfying.");
         } else {
-          handleWhisper("The pattern eludes you... Try again.");
+          handleWhisper("The pattern has not yet been fully internalised. The data from this attempt will inform the next.");
         }
         setPatternChallenge({ sequence: [], userSequence: [], active: false });
         setCurrentGame(null);
@@ -1219,7 +1435,7 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
       setBond(b => Math.min(100, b + 5));
       setActivatedPoints(prev => new Set(prev).add(index));
       addToBondHistory(`Activated sigil point ${index + 1}`);
-      handleWhisper("A new connection forms.");
+      handleWhisper("A new structural connection has been established. The topology of the field is updated.");
     } else {
       addToBondHistory(`Resonated with sigil point ${index + 1}`);
     }
@@ -1251,7 +1467,7 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
     }
     setPatternChallenge({ sequence, userSequence: [], active: true });
     setCurrentGame('sigilPattern');
-    handleWhisper(`Memorize this pattern: ${sequence.map(i => i + 1).join(' → ')}`);
+    handleWhisper(`Encode this sequence: ${sequence.map(i => i + 1).join(' → ')}. Precision is the point of the exercise.`);
 
     // Play the sequence
     if (audioEnabled) {
@@ -1274,12 +1490,12 @@ const AuraliaMetaPet: React.FC<AuraliaMetaPetProps> = ({
       setCuriosity(c => Math.min(100, c + 12));
       setGamesWon(prev => prev + 1);
       addToBondHistory(`Answered trivia correctly: ${triviaQuestion.answer}`);
-      handleWhisper("Wisdom flows through the numbers!");
+      handleWhisper("Correct. The Fibonacci sequence holds its structure regardless of who examines it. I find that reassuring.");
       if (audioEnabled) {
         [0, 2, 4].forEach((note, i) => setTimeout(() => playNote(note, 0.3), i * 150));
       }
     } else {
-      handleWhisper(`Not quite. The answer was ${triviaQuestion.answer}.`);
+      handleWhisper(`Incorrect. The answer was ${triviaQuestion.answer}. The sequence does not deviate from its own logic — only our recall of it does.`);
     }
 
     setTriviaQuestion(null);
