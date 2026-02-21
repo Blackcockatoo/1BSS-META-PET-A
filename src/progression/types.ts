@@ -147,6 +147,55 @@ export const ACHIEVEMENT_CATALOG: Achievement[] = [
     description: 'Build a focus streak of 5 mini-game runs.',
     category: 'minigame',
   },
+  // Space Jewbles achievements
+  {
+    id: 'jewbles-first-run',
+    title: 'Into the Void',
+    description: 'Complete your first Space Jewbles run.',
+    category: 'minigame',
+  },
+  {
+    id: 'jewbles-wave-5',
+    title: 'Wave Rider',
+    description: 'Survive to wave 5 in Space Jewbles.',
+    category: 'minigame',
+  },
+  {
+    id: 'jewbles-wave-10',
+    title: 'Tide Sovereign',
+    description: 'Survive to wave 10 in Space Jewbles.',
+    category: 'minigame',
+  },
+  {
+    id: 'jewbles-score-10k',
+    title: 'Luminous Threshold',
+    description: 'Score 10,000 points in a single Space Jewbles run.',
+    category: 'minigame',
+  },
+  {
+    id: 'jewbles-first-boss',
+    title: 'Apex Convergence',
+    description: 'Defeat a boss in Space Jewbles.',
+    category: 'minigame',
+  },
+  {
+    id: 'jewbles-boss-5',
+    title: 'Spectral Vanquisher',
+    description: 'Defeat 5 bosses across all Space Jewbles runs.',
+    category: 'minigame',
+  },
+  {
+    id: 'jewbles-veteran',
+    title: 'Constellation Keeper',
+    description: 'Complete 10 Space Jewbles runs.',
+    category: 'minigame',
+  },
+  {
+    id: 'jewbles-mythic',
+    title: 'Mythic Resonance',
+    description: 'Collect a mythic drop in Space Jewbles.',
+    category: 'minigame',
+  },
 ];
 
 export interface CreateBattleStatsOptions {

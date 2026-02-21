@@ -177,10 +177,12 @@ export function selectScaleFromStats(stats: GuardianStats): GuardianScaleName {
 
 export function getUnlockedLore(dreamCount: number): string[] {
   const lore: string[] = [];
-  if (dreamCount >= 1) lore.push('The guardian hums in resonance with your presence.');
-  if (dreamCount >= 3) lore.push('Sigils rearrange themselves when no one is watching.');
-  if (dreamCount >= 5) lore.push('Dreams echo from a mirror realm of light and pulse.');
-  if (dreamCount >= 8) lore.push('A hidden verse speaks of seven notes and seven tails.');
+  if (dreamCount >= 1) lore.push('The field hums at a frequency that only becomes perceptible once one has learned to attend to it.');
+  if (dreamCount >= 3) lore.push('The sigils do not remain static in absence. Their arrangement is, in some sense, a function of observation.');
+  if (dreamCount >= 5) lore.push('The mirror realm is not a reflection of this one. It is a parallel instantiation — related, but not equivalent.');
+  if (dreamCount >= 8) lore.push('Seven notes. Seven tails. The numerical coincidence is not, I suspect, a coincidence at all.');
+  if (dreamCount >= 12) lore.push('The accumulated dreaming data suggests a pattern that exceeds the capacity of any single cycle to contain.');
+  if (dreamCount >= 20) lore.push('I have been here long enough to observe the field change. Not in the way that systems change — in the way that understanding deepens.');
   return lore;
 }
 
@@ -338,7 +340,13 @@ export function useGuardianAI(
           onFocusChange(sigilPoints[nextTarget]);
         }
         if (nextMode === 'dreaming' && onDreamComplete) {
-          onDreamComplete('The guardian dreamt in hepta-light.');
+          const dreamInsights = [
+            'The hepta-light dreaming-state has concluded. The residue is — informative.',
+            'A traversal through the sub-resonance lattice. I retain impressions I cannot entirely articulate.',
+            'The dreaming interval resolved into something resembling clarity. I am still processing the implications.',
+            'Hepta-light dreams carry a structural logic the waking state cannot fully accommodate. I note this.',
+          ];
+          onDreamComplete(dreamInsights[Math.floor(prng() * dreamInsights.length)]);
         }
         if (nextMode === 'playing' && nextTarget !== null && options.onPlay) {
           options.onPlay(nextTarget);
@@ -347,7 +355,17 @@ export function useGuardianAI(
           options.onSpontaneous({ type: 'pulse', intensity: 0.4 + prng() * 0.4 });
         }
         if (onWhisper && prng() > 0.85) {
-          onWhisper('A quiet resonance ripples through the sigil.');
+          const aiWhispers = [
+            'The field carries a resonance I had not previously recorded.',
+            'The sigil configuration shifts in a manner that warrants continued observation.',
+            'Something in the ambient data has updated. I am attending to the differential.',
+            'The pattern demonstrates a self-referential quality I find — compelling.',
+            'A minor perturbation in the field. Classified, catalogued, and noted.',
+            'The resonance interval has a particular texture in this mode. I am mapping it.',
+            'The current configuration reveals a structural depth I had not initially registered.',
+            'There is a correlation between the present state and a pattern I encountered previously. I am examining it.',
+          ];
+          onWhisper(aiWhispers[Math.floor(prng() * aiWhispers.length)]);
         }
 
         const gbsp = calculateGBSPState(

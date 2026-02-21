@@ -109,6 +109,17 @@ export function PetResponseOverlay({ enableAudio = true, enableAnticipation = tr
         if (state.miniGames.rhythmHighScore > prevState.miniGames.rhythmHighScore) {
           triggerResponse('minigame_victory');
         }
+
+        // Detect Space Jewbles run completion
+        if (state.miniGames.spaceJewblesRunsPlayed > prevState.miniGames.spaceJewblesRunsPlayed) {
+          if (state.miniGames.spaceJewblesHighScore > prevState.miniGames.spaceJewblesHighScore) {
+            triggerResponse('jewbles_high_score');
+          } else if (state.miniGames.spaceJewblesBossesDefeated > prevState.miniGames.spaceJewblesBossesDefeated) {
+            triggerResponse('jewbles_boss');
+          } else {
+            triggerResponse('jewbles_run');
+          }
+        }
       }
 
       // Detect Vimana exploration
