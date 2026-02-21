@@ -51,11 +51,6 @@ Use this as a no-overwhelm operating sheet. Pick one lane per week and execute e
 - Verify teacher-facing docs match actual UI labels/actions.
 - Freeze a pilot build and publish distribution links.
 
-## Lane A Definition of done
-- ICT can validate offline behavior in under 10 minutes using the quickstart.
-- A teacher can run all 7 sessions in 20-minute windows without ad-hoc setup.
-- Recovery path (restart without loss) is documented and works in a dry run.
-
 ---
 
 ## Lane B — School Outreach (Pipeline discipline in 7 days)
@@ -97,11 +92,6 @@ Use this as a no-overwhelm operating sheet. Pick one lane per week and execute e
 - Retire low-performing templates and keep top 1-2 variants.
 - Lock next week’s outreach list with priority schools.
 
-## Lane B Definition of done
-- Every contacted school has a next action and due date.
-- Follow-up cadence is automated (7/14/final bump) with overdue highlighting.
-- KPI panel updates from the tracker without manual recomputation.
-
 ---
 
 ## Lane C — Regulator Submission (Authority lane in 7 days)
@@ -142,11 +132,6 @@ Use this as a no-overwhelm operating sheet. Pick one lane per week and execute e
 - Final proofread and formal submission.
 - Prepare school-facing summary that references regulator framing.
 - Schedule periodic updates to keep the “why now” section current.
-
-## Lane C Definition of done
-- Submission and annex are versioned and ready to send.
-- Claims are verifiable and mapped to concrete controls.
-- School-facing and regulator-facing packs are aligned but audience-specific.
 
 ---
 

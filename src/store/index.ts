@@ -696,6 +696,8 @@ export function createMetaPetWebStore(
           lastPlayedAt: Date.now(),
         };
 
+        const achievements = state.achievements;
+
         const update: Partial<MetaPetState> = { miniGames: next };
 
         // Grant XP based on performance (5-15 XP, scaled by wave and score)

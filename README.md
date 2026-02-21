@@ -146,6 +146,8 @@ Visit `http://localhost:3000`
 - 7-session cards: `docs/curriculum-os/session-cards.md`
 - ICT/leadership audit checklist: `docs/curriculum-os/ict-leadership-audit-sheet.md`
 - 7-day execution checklists: `docs/curriculum-os/7-day-sprint-checklists.md`
+- Pilot v1 scope freeze (Day 1): `docs/curriculum-os/pilot-v1-scope.md`
+- Pilot v1 internal runbook (Day 1): `docs/curriculum-os/pilot-v1-runbook-internal.md`
 
 ---
 
