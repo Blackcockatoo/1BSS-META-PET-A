@@ -33,6 +33,7 @@ const UI_STRINGS = {
       evolution: 'Evolution',
       miniGames: 'Mini-Games',
       breedingLab: 'Breeding Lab',
+      alchemistStation: 'Alchemist Station',
       classroomTools: 'Classroom Tools',
     },
     classroom: {
@@ -42,7 +43,7 @@ const UI_STRINGS = {
         'Switch to static visuals to reduce CPU/GPU usage for classrooms with limited devices or bandwidth.',
       lowBandwidthOn: 'Enabled',
       lowBandwidthOff: 'Disabled',
-      teacherPromptsTitle: 'Teacher prompts',
+      teacherPromptsTitle: 'Teacher Prompt Suite',
       teacherPromptsDescription: 'Short prompts to guide classroom reflection.',
       teacherPrompts: [
         {
@@ -142,6 +143,7 @@ const UI_STRINGS = {
       evolution: 'Evolución',
       miniGames: 'Mini juegos',
       breedingLab: 'Laboratorio de crianza',
+      alchemistStation: 'Estación de alquimia',
       classroomTools: 'Herramientas del aula',
     },
     classroom: {
@@ -151,7 +153,7 @@ const UI_STRINGS = {
         'Cambia a visuales estáticos para reducir el uso de CPU/GPU en aulas con dispositivos o conexión limitada.',
       lowBandwidthOn: 'Activado',
       lowBandwidthOff: 'Desactivado',
-      teacherPromptsTitle: 'Indicaciones para docentes',
+      teacherPromptsTitle: 'Suite de indicaciones docentes',
       teacherPromptsDescription: 'Preguntas breves para guiar la reflexión en clase.',
       teacherPrompts: [
         {
@@ -251,6 +253,7 @@ const UI_STRINGS = {
       evolution: 'Évolution',
       miniGames: 'Mini-jeux',
       breedingLab: 'Laboratoire de reproduction',
+      alchemistStation: 'Station d’alchimie',
       classroomTools: 'Outils de classe',
     },
     classroom: {

@@ -696,66 +696,9 @@ export function createMetaPetWebStore(
           lastPlayedAt: Date.now(),
         };
 
-        let achievements = state.achievements;
-
-        // First run ever
-        if (previous.spaceJewblesRunsPlayed === 0 && hasProgress) {
-          const r = unlockAchievementWithReward(achievements, 'jewbles-first-run');
-          achievements = r.achievements;
-          if (r.reward) rewardPayloads.push(r.reward);
-        }
-
-        // Wave milestones
-        if (safeWave >= 5 && previous.spaceJewblesMaxWave < 5) {
-          const r = unlockAchievementWithReward(achievements, 'jewbles-wave-5');
-          achievements = r.achievements;
-          if (r.reward) rewardPayloads.push(r.reward);
-        }
-        if (safeWave >= 10 && previous.spaceJewblesMaxWave < 10) {
-          const r = unlockAchievementWithReward(achievements, 'jewbles-wave-10');
-          achievements = r.achievements;
-          if (r.reward) rewardPayloads.push(r.reward);
-        }
-
-        // Score milestone
-        if (safeScore >= 10000 && previous.spaceJewblesHighScore < 10000) {
-          const r = unlockAchievementWithReward(achievements, 'jewbles-score-10k');
-          achievements = r.achievements;
-          if (r.reward) rewardPayloads.push(r.reward);
-        }
-
-        // Boss kills (first boss)
-        if (safeBossesDefeated > 0 && previous.spaceJewblesBossesDefeated === 0) {
-          const r = unlockAchievementWithReward(achievements, 'jewbles-first-boss');
-          achievements = r.achievements;
-          if (r.reward) rewardPayloads.push(r.reward);
-        }
-
-        // Cumulative 5 bosses
-        if (previous.spaceJewblesBossesDefeated + safeBossesDefeated >= 5 && previous.spaceJewblesBossesDefeated < 5) {
-          const r = unlockAchievementWithReward(achievements, 'jewbles-boss-5');
-          achievements = r.achievements;
-          if (r.reward) rewardPayloads.push(r.reward);
-        }
-
-        // 10 runs played
-        if (previous.spaceJewblesRunsPlayed + 1 >= 10 && previous.spaceJewblesRunsPlayed < 10) {
-          const r = unlockAchievementWithReward(achievements, 'jewbles-veteran');
-          achievements = r.achievements;
-          if (r.reward) rewardPayloads.push(r.reward);
-        }
-
-        // Mythic drop
-        if (safeMythicDrops > 0 && previous.spaceJewblesMythicDrops === 0) {
-          const r = unlockAchievementWithReward(achievements, 'jewbles-mythic');
-          achievements = r.achievements;
-          if (r.reward) rewardPayloads.push(r.reward);
-        }
+        const achievements = state.achievements;
 
         const update: Partial<MetaPetState> = { miniGames: next };
-        if (achievements !== state.achievements) {
-          update.achievements = achievements;
-        }
 
         // Grant XP based on performance (5-15 XP, scaled by wave and score)
         if (hasProgress) {

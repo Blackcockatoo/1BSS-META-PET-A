@@ -1,0 +1,71 @@
+# Pilot v1 Scope Freeze (Day 1)
+
+**Status:** Frozen for pilot delivery sprint  
+**Owner:** Pilot Delivery Lead  
+**Date frozen:** 2026-02-20
+
+## Goal
+Ship a classroom-safe, ICT-verifiable pilot build that can run a 20-minute session with no network dependency, no account setup, and no pet-state loss.
+
+## In scope (Pilot v1)
+
+### 1) Classroom Mode (non-negotiable)
+- Single toggle to activate classroom defaults.
+- Fast-start flow (minimal setup clicks before first interaction).
+- Predictable session pacing for 20-minute lessons.
+- Calm interaction loop (reduced UI clutter and interruptions).
+
+### 2) Offline verification (non-negotiable)
+- Visible `Offline Verified` state in product UI.
+- Built-in self-check page confirming offline operation readiness.
+- ICT-facing verification notes (DevTools and firewall checks) included in docs.
+
+### 3) Teacher controls (non-negotiable)
+- Reset pet.
+- Pause/sleep mode.
+- End session ritual.
+- Volume/mute control.
+- Brightness-friendly display mode.
+
+### 4) Device robustness (non-negotiable)
+- Runs on common school environments (older laptops, Chromebooks, iPads where supported).
+- No account required.
+- No network login gate.
+
+### 5) Save/recovery reliability (non-negotiable)
+- Pet state survives close/reopen.
+- Corrupt or invalid state is detected and recovered safely.
+- Clear `restart without loss` path for teachers.
+
+## Out of scope (Pilot v1)
+- App store listing and app-store compliance packaging.
+- Expanded marketing site/press kit polish.
+- Regulator pack publication.
+- Advanced projector mode enhancements beyond baseline readability.
+- Extended analytics/reporting features.
+
+## Must-pass release criteria (Day 1 freeze)
+The pilot build is **not** releasable unless all items pass:
+
+1. **Classroom Mode stability**
+   - Can be enabled in-app and remains active through session.
+   - Session can begin in under 60 seconds from launch on reference devices.
+
+2. **Offline Verified + self-check**
+   - `Offline Verified` state is visible in normal teacher flow.
+   - Self-check completes and reports expected offline readiness.
+
+3. **No pet-state loss on save/recovery**
+   - Pet state remains intact after app restart.
+   - Recovery flow preserves previous valid state after interrupted save/corrupt payload simulation.
+
+## Acceptance evidence required
+- Test notes for launch/session/restart on at least one low-spec device profile.
+- Screenshot of `Offline Verified` state.
+- Recovery test log showing `restart without loss` path.
+
+## Change control
+Any scope additions during Pilot v1 require:
+1. Written rationale.
+2. Risk assessment (time/stability impact).
+3. Explicit sign-off from pilot owner.

@@ -21,6 +21,12 @@
 - **Black60**: Latent traits (evolution paths, rare abilities)
 - Privacy-first: only genome hashes stored, never raw genome
 
+✅ **Interactive Conscious Jewble Hub (7 Items)**
+- Place conscious mini-objects (like a **leaf Jewble** or **ball Jewble**) that carry their own DNA-hash-linked behavior profile.
+- Your Meta-Pet can actively interact with each Jewble for play, bonding, exploration, and self-soothing loops.
+- Add tone inputs so Jewbles can express sound and mood (chimes, pulses, rhythmic cues) during interaction.
+- Trait state + Jewble type + tone pattern together create rich, emergent behavior moments beyond visuals alone.
+
 ✅ **Visual Pet Sprite**
 - SVG-based rendering driven by genome traits
 - Reflects body type, colors, patterns, and special features
@@ -139,6 +145,9 @@ Visit `http://localhost:3000`
 - Consolidated map: `docs/curriculum-os/README.md`
 - 7-session cards: `docs/curriculum-os/session-cards.md`
 - ICT/leadership audit checklist: `docs/curriculum-os/ict-leadership-audit-sheet.md`
+- 7-day execution checklists: `docs/curriculum-os/7-day-sprint-checklists.md`
+- Pilot v1 scope freeze (Day 1): `docs/curriculum-os/pilot-v1-scope.md`
+- Pilot v1 internal runbook (Day 1): `docs/curriculum-os/pilot-v1-runbook-internal.md`
 
 ---
 

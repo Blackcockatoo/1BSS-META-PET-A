@@ -2,6 +2,13 @@
 
 This package mirrors Jewble's existing product filing logic into a curriculum-ready operating structure for schools.
 
+## Day 1 pilot delivery artifacts
+
+- Pilot v1 scope freeze: `docs/curriculum-os/pilot-v1-scope.md`
+- Pilot v1 internal runbook: `docs/curriculum-os/pilot-v1-runbook-internal.md`
+
+---
+
 ## One organism, three audience layers
 
 Jewble should be presented through **layered revelation**:
@@ -92,6 +99,7 @@ This avoids product fragmentation: one core system, different audience framing.
 - parent communication templates
 - leadership summary ("gift, not pitch" tone)
 - rollout Q&A snippets
+- 7-day execution checklists for operational lanes
 
 ---
 
