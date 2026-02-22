@@ -8,7 +8,9 @@ import { MiniGamesPanel } from './MiniGamesPanel';
 import { CosmeticsPanel } from './CosmeticsPanel';
 import { AchievementsPanel } from './AchievementsPanel';
 import { PatternRecognitionGame } from './PatternRecognitionGame';
-import { Map, Swords, Gamepad2, Sparkles, Trophy } from 'lucide-react';
+import DigitalDNAHub from './DigitalDNAHub';
+import { Moss60Hub } from './Moss60Hub';
+import { Map, Swords, Gamepad2, Sparkles, Trophy, Waves, Shield } from 'lucide-react';
 
 export function FeaturesDashboard() {
   const [activeTab, setActiveTab] = useState('vimana');
@@ -16,7 +18,7 @@ export function FeaturesDashboard() {
   return (
     <div className="w-full max-w-4xl mx-auto">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6 h-auto">
+        <TabsList className="grid w-full grid-cols-7 mb-6 h-auto">
           <TabsTrigger value="vimana" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 touch-manipulation">
             <Map className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[10px] sm:text-sm">Explore</span>
@@ -37,6 +39,14 @@ export function FeaturesDashboard() {
             <Trophy className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[10px] sm:text-sm">Rewards</span>
           </TabsTrigger>
+          <TabsTrigger value="asmr" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 touch-manipulation">
+            <Waves className="w-5 h-5 sm:w-4 sm:h-4" />
+            <span className="text-[10px] sm:text-sm">ASMR</span>
+          </TabsTrigger>
+          <TabsTrigger value="moss60" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 touch-manipulation">
+            <Shield className="w-5 h-5 sm:w-4 sm:h-4" />
+            <span className="text-[10px] sm:text-sm">MOSS60</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="vimana" className="mt-0">
@@ -55,7 +65,7 @@ export function FeaturesDashboard() {
           <div className="bg-zinc-900/80 backdrop-blur rounded-xl p-3 sm:p-6 border border-zinc-800">
             <div className="space-y-6">
               <MiniGamesPanel />
-              
+
               <div className="border-t border-zinc-700 pt-6">
                 <PatternRecognitionGame />
               </div>
@@ -72,6 +82,18 @@ export function FeaturesDashboard() {
         <TabsContent value="achievements" className="mt-0">
           <div className="bg-zinc-900/80 backdrop-blur rounded-xl p-3 sm:p-6 border border-zinc-800">
             <AchievementsPanel />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="asmr" className="mt-0">
+          <div className="bg-zinc-900/80 backdrop-blur rounded-xl p-3 sm:p-6 border border-zinc-800">
+            <DigitalDNAHub />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="moss60" className="mt-0">
+          <div className="bg-zinc-900/80 backdrop-blur rounded-xl p-3 sm:p-6 border border-zinc-800">
+            <Moss60Hub />
           </div>
         </TabsContent>
       </Tabs>
