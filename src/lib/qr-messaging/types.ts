@@ -33,8 +33,11 @@ export interface Moss60ProtocolEnvelope {
 /** QR error correction levels */
 export type ErrorCorrectionLevel = 'L' | 'M' | 'Q' | 'H';
 
-/** Encryption modes */
+/** Experimental encryption variants */
 export type EncryptionMode = 'standard' | 'temporal' | 'ratchet';
+
+/** Cryptography core mode */
+export type CryptoMode = 'secure' | 'experimental';
 
 /** Key pair for cryptographic operations */
 export interface KeyPair {
@@ -50,6 +53,8 @@ export interface HandshakeState {
   sharedSecret: number[] | null;
   encryptionKey: number[] | null;
   decryptionKey: number[] | null;
+  securePrivateKey?: string | null;
+  secureSharedKey?: string | null;
   messageCount: number;
   connected: boolean;
   createdAt: number;
@@ -123,6 +128,7 @@ export interface QRMessagingState {
   // Settings
   defaultFormat: EncodingFormat;
   defaultErrorCorrection: ErrorCorrectionLevel;
+  cryptoMode: CryptoMode;
   encryptionMode: EncryptionMode;
 }
 
@@ -139,11 +145,11 @@ export interface QRMessagingActions {
 
   // Handshake
   initiateHandshake: (conversationId: string) => Promise<string>;
-  completeHandshake: (conversationId: string, remotePublicHash: string) => void;
+  completeHandshake: (conversationId: string, remotePublicHash: string) => Promise<void>;
 
   // Messaging
-  sendMessage: (conversationId: string, plaintext: string) => Message | null;
-  receiveMessage: (conversationId: string, ciphertext: string) => Message | null;
+  sendMessage: (conversationId: string, plaintext: string) => Promise<Message | null>;
+  receiveMessage: (conversationId: string, ciphertext: string) => Promise<Message | null>;
 
   // QR operations
   addGeneratedQR: (qr: QRMessage) => void;
@@ -153,6 +159,7 @@ export interface QRMessagingActions {
   // Settings
   setDefaultFormat: (format: EncodingFormat) => void;
   setDefaultErrorCorrection: (level: ErrorCorrectionLevel) => void;
+  setCryptoMode: (mode: CryptoMode) => void;
   setEncryptionMode: (mode: EncryptionMode) => void;
 
   // Utilities
