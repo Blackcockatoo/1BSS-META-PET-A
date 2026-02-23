@@ -19,6 +19,7 @@ import {
   useQRMessagingStore,
   type Message,
   type EncryptionMode,
+  type CryptoMode,
 } from '@/lib/qr-messaging';
 
 interface MessagingPanelProps {
@@ -41,6 +42,7 @@ export function MessagingPanel({ compact = false }: MessagingPanelProps) {
     conversations,
     activeConversationId,
     encryptionMode,
+    cryptoMode,
     setLocalIdentity,
     generateKeyPair,
     createConversation,
@@ -49,6 +51,7 @@ export function MessagingPanel({ compact = false }: MessagingPanelProps) {
     initiateHandshake,
     completeHandshake,
     sendMessage,
+    setCryptoMode,
     setEncryptionMode,
   } = useQRMessagingStore();
 
@@ -97,20 +100,20 @@ export function MessagingPanel({ compact = false }: MessagingPanelProps) {
     }
   }, [activeConversationId, initiateHandshake]);
 
-  const handleCompleteHandshake = useCallback(() => {
+  const handleCompleteHandshake = useCallback(async () => {
     if (!activeConversationId || !remotePublicHash.trim()) {
       setError('Enter remote public hash');
       return;
     }
     setError(null);
-    completeHandshake(activeConversationId, remotePublicHash.trim());
+    await completeHandshake(activeConversationId, remotePublicHash.trim());
     setRemotePublicHash('');
   }, [activeConversationId, remotePublicHash, completeHandshake]);
 
-  const handleSendMessage = useCallback(() => {
+  const handleSendMessage = useCallback(async () => {
     if (!activeConversationId || !newMessage.trim()) return;
 
-    const result = sendMessage(activeConversationId, newMessage.trim());
+    const result = await sendMessage(activeConversationId, newMessage.trim());
     if (result) {
       setNewMessage('');
       setError(null);
@@ -392,10 +395,25 @@ export function MessagingPanel({ compact = false }: MessagingPanelProps) {
             </div>
           )}
 
-          {/* Encryption Mode */}
+          {/* Cryptography Mode */}
           {isConnected && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Mode:</span>
+              <span className="text-xs text-zinc-500">Crypto:</span>
+              <select
+                value={cryptoMode}
+                onChange={e => setCryptoMode(e.target.value as CryptoMode)}
+                className="rounded border border-slate-700 bg-slate-950/60 px-2 py-1 text-xs text-zinc-100 focus:outline-none"
+              >
+                <option value="secure">Secure (Web Crypto)</option>
+                <option value="experimental">Experimental (MOSS60)</option>
+              </select>
+            </div>
+          )}
+
+          {/* Encryption Mode */}
+          {isConnected && cryptoMode === 'experimental' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Experimental mode:</span>
               <select
                 value={encryptionMode}
                 onChange={e => setEncryptionMode(e.target.value as EncryptionMode)}
