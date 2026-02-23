@@ -24,7 +24,7 @@ export type {
 } from './types';
 
 // Protocol constants
-export { MOSS60_PROTOCOL_VERSION } from './types';
+export { MOSS60_PREFIX, MOSS60_PROTOCOL_ID, MOSS60_PROTOCOL_VERSION } from './types';
 
 // Encoding utilities
 export {

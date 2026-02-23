@@ -5,7 +5,7 @@ import type {
   Moss60Capability,
   Moss60ProtocolEnvelope,
 } from './types';
-import { MOSS60_PROTOCOL_VERSION } from './types';
+import { MOSS60_PREFIX, MOSS60_PROTOCOL_ID, MOSS60_PROTOCOL_VERSION } from './types';
 
 export const REQUIRED_PROTOCOL_CAPABILITIES: Moss60Capability[] = [
   'envelope-v1',
@@ -72,7 +72,7 @@ export function createProtocolEnvelope(
   const payload = encodeByFormat(data, format);
 
   return {
-    protocol: 'moss60',
+    protocol: MOSS60_PROTOCOL_ID,
     version: MOSS60_PROTOCOL_VERSION,
     capabilities: [...REQUIRED_PROTOCOL_CAPABILITIES, capabilityForFormat(format)],
     format,
@@ -93,7 +93,7 @@ export function parseProtocolEnvelope(raw: string): Moss60ProtocolEnvelope | nul
   try {
     const parsed = JSON.parse(raw) as Partial<Moss60ProtocolEnvelope>;
 
-    if (parsed.protocol !== 'moss60' || !parsed.version || !Array.isArray(parsed.capabilities)) {
+    if (parsed.protocol !== MOSS60_PROTOCOL_ID || !parsed.version || !Array.isArray(parsed.capabilities)) {
       return null;
     }
 
@@ -123,7 +123,7 @@ export function decodeProtocolPayload(raw: string): {
   const envelope = parseProtocolEnvelope(raw);
 
   if (!envelope) {
-    if (raw.startsWith('MOSS60:')) {
+    if (raw.startsWith(MOSS60_PREFIX)) {
       return {
         decoded: decodeMoss60(raw),
         format: 'base60',

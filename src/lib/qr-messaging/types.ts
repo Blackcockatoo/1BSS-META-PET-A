@@ -6,6 +6,12 @@
 /** Base-60 encoding formats */
 export type EncodingFormat = 'base60' | 'hex' | 'text' | 'json';
 
+/** Canonical protocol identifier used in payload envelopes */
+export const MOSS60_PROTOCOL_ID = 'moss60' as const;
+
+/** Prefix for Base-60 payload strings */
+export const MOSS60_PREFIX = 'MOSS60:' as const;
+
 /** Protocol version for payload envelope negotiation */
 export const MOSS60_PROTOCOL_VERSION = '1.0' as const;
 
@@ -21,7 +27,7 @@ export type Moss60Capability =
 
 /** Versioned protocol envelope used in QR payloads */
 export interface Moss60ProtocolEnvelope {
-  protocol: 'moss60';
+  protocol: typeof MOSS60_PROTOCOL_ID;
   version: typeof MOSS60_PROTOCOL_VERSION;
   capabilities: Moss60Capability[];
   format: EncodingFormat;

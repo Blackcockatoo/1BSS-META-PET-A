@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * DigitalDNAHub — Teacher & Student Interactive DNA Visualiser
+ * DigitalDNAHub — All-Ages Interactive DNA Learning Hub
  *
- * Five interactive modes that turn three sacred number sequences into
+ * Five interactive modes that turn three core number sequences into
  * geometry, colour and sound. Works with touch, stylus, trackpad and mouse.
  *
  * Mode overview (teacher reference):
@@ -15,7 +15,7 @@
  *             simultaneous touch points create interference patterns.
  *  sound    – Bar-chart piano. Tap any bar to play its DNA note, or play
  *             the full sequence as a melody.
- *  journey  – Guided step-by-step classroom setup that feeds all other modes.
+ *  journey  – Guided step-by-step setup that feeds all other modes.
  */
 
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
@@ -51,7 +51,7 @@ interface Particle {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /**
- * Three sacred number sequences — each encodes a unique DNA strand that
+ * Three core number sequences — each encodes a unique DNA strand that
  * drives every visual and sonic output in the hub.
  */
 const SEEDS: Record<SeedKey, string> = {
@@ -77,7 +77,7 @@ const COLORS = [
  * the main palette's first four entries (#1a1a2e … #533483) are effectively
  * invisible at low alpha on dark surfaces. Used by helix, mandala, particles.
  */
-const ASMR_COLORS = [
+const LEARNING_COLORS = [
   '#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa',
   '#38bdf8', '#4ade80', '#facc15', '#fb923c', '#e879f9',
 ] as const;
@@ -115,9 +115,9 @@ function digitToColor(digit: number): string {
   return COLORS[clamp(Math.round(digit), 0, COLORS.length - 1)];
 }
 
-/** Map a digit 0-9 to the bright ASMMR colour palette. */
-function digitToAsmrColor(digit: number): string {
-  return ASMR_COLORS[clamp(Math.round(digit), 0, ASMR_COLORS.length - 1)];
+/** Map a digit 0-9 to the bright learning colour palette. */
+function digitToLearningColor(digit: number): string {
+  return LEARNING_COLORS[clamp(Math.round(digit), 0, LEARNING_COLORS.length - 1)];
 }
 
 /**
@@ -358,7 +358,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     // Visual structure (mirrors real DNA visualisations):
     //   • Backbone — one consistent glowing colour per strand, running
     //     along the length of the helix. Keeps each strand readable.
-    //   • Base-pair cross-bridges — coloured by digit (ASMR palette),
+    //   • Base-pair cross-bridges — coloured by digit (learning palette),
     //     drawn between adjacent strands every few nodes. These are the
     //     "rungs" of the ladder and the source of vivid colour variety.
     //   • Nodes (spheres) — coloured + glowing per digit, animated emissive.
@@ -373,8 +373,8 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     // Node materials — one per digit, animated each frame
     const sharedMats = Array.from({ length: 10 }, (_, d) =>
       new THREE.MeshPhongMaterial({
-        color:             new THREE.Color(digitToAsmrColor(d)),
-        emissive:          new THREE.Color(digitToAsmrColor(d)),
+        color:             new THREE.Color(digitToLearningColor(d)),
+        emissive:          new THREE.Color(digitToLearningColor(d)),
         emissiveIntensity: 0.6,
         shininess:         140,
         specular:          new THREE.Color(0xffffff),
@@ -389,7 +389,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     );
     // One bridge material per digit (coloured base-pair rungs)
     const bridgeMats = Array.from({ length: 10 }, (_, d) =>
-      new THREE.LineBasicMaterial({ color: new THREE.Color(digitToAsmrColor(d)), opacity: 0.9, transparent: true })
+      new THREE.LineBasicMaterial({ color: new THREE.Color(digitToLearningColor(d)), opacity: 0.9, transparent: true })
     );
 
     // Build each strand and record world-space node positions for bridges
@@ -617,7 +617,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
   }, [activeMode, selectedSeed, harmony, getSequence, playChord, ensureAudio, registerInteraction, pulseHaptic]);
 
   // ══════════════════════════════════════════════════════════════════════════
-  // Sacred Mandala (2-D paint canvas)
+  // Symmetry Studio (2-D paint canvas)
   // ══════════════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!surfaceCanvasRef.current || activeMode !== 'mandala') return;
@@ -728,7 +728,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
           const digit = sequence[(ring * seg + i) % sequence.length];
           const nx    = cx + Math.cos(a) * r;
           const ny    = cy + Math.sin(a) * r;
-          const color = digitToAsmrColor(digit);
+          const color = digitToLearningColor(digit);
 
           // Animated size — each ring and position pulses at its own phase
           const base   = 2.6 + digit * 0.5;
@@ -764,9 +764,9 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         ctx.stroke();
       }
 
-      // User paint points — ASMR palette cycling, with glow
+      // User paint points — learning palette cycling, with glow
       paintedPatternRef.current.forEach((pt, idx) => {
-        const color    = digitToAsmrColor(idx % 10);
+        const color    = digitToLearningColor(idx % 10);
         const alpha    = 0.5 + (idx % harmony) / (harmony * 1.4);
         const hexAlpha = Math.floor(Math.min(alpha, 1) * 255).toString(16).padStart(2, '0');
         ctx.beginPath();
@@ -813,9 +813,9 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         return {
           x: Math.random() * W, y: Math.random() * H,
           vx: (Math.random() - 0.5) * 1.2, vy: (Math.random() - 0.5) * 1.2,
-          // Use the bright ASMR palette — the main COLORS palette is too dark
+          // Use the bright learning palette — the main COLORS palette is too dark
           // (entries 0-3 are near-black, invisible on a dark canvas)
-          digit, color: digitToAsmrColor(digit),
+          digit, color: digitToLearningColor(digit),
           size: 2.2 + digit * 0.38, mass: digit + 1,
         };
       });
@@ -844,7 +844,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
       ripples.push({
         x, y,
         radius: 6, speed: 1.8 + intensity * 0.9,
-        alpha: 0.82, color: digitToAsmrColor(digit), lineWidth: 2.4,
+        alpha: 0.82, color: digitToLearningColor(digit), lineWidth: 2.4,
       });
     };
 
@@ -1019,10 +1019,10 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
   const modes: { id: ModeKey; icon: string; label: string; desc: string }[] = [
     { id: 'spiral',    icon: '🌀', label: 'DNA Helix',      desc: 'Drag · pinch · tap nodes' },
-    { id: 'mandala',   icon: '🔮', label: 'Sacred Mandala', desc: 'Finger-paint symmetry'    },
+    { id: 'mandala',   icon: '🔮', label: 'Symmetry Studio', desc: 'Finger-paint symmetry'    },
     { id: 'particles', icon: '✨', label: 'Particle Field',  desc: 'Guide constellations'     },
-    { id: 'sound',     icon: '🎵', label: 'Sound Temple',   desc: 'Tap bars to play notes'   },
-    { id: 'journey',   icon: '🧭', label: 'Guided Journey', desc: 'Classroom setup wizard'   },
+    { id: 'sound',     icon: '🎵', label: 'Sound Lab',   desc: 'Tap bars to play notes'   },
+    { id: 'journey',   icon: '🧭', label: 'Guided Journey', desc: 'All-ages setup guide'   },
   ];
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1045,7 +1045,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
             ✨ Digital DNA ✨
           </h1>
           <p className="text-lg sm:text-2xl text-blue-300 font-light mb-2">
-            Sacred Geometry · Touch · Sonic Flow
+            All-Ages Learning Hub · Touch · Sound · Patterns
           </p>
           {lessonContext && (
             <p className="text-xs text-cyan-300 mt-1">
@@ -1069,7 +1069,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
               }`}
             >
               <div className="text-[10px] uppercase tracking-widest text-slate-400 mb-0.5">
-                {m.done ? '✓ Completed' : 'Touch Mission'}
+                {m.done ? '✓ Completed' : 'Learning Mission'}
               </div>
               <div className="text-sm font-semibold text-amber-100">{m.title}</div>
               <div className="text-xs mt-1 text-cyan-300 font-mono">{m.progress}</div>
@@ -1118,7 +1118,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                   Drag to rotate · pinch to zoom · hover/tap glowing spheres for notes
                 </p>
                 <p className="text-slate-500 text-xs mt-1 italic">
-                  Teacher tip: harmony slider controls how many helix arms are visible
+                  Guide tip: harmony controls how many helix arms are visible
                 </p>
               </div>
               {/*
@@ -1142,13 +1142,13 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
             <div className="bg-slate-900/60 rounded-3xl p-4 sm:p-8 border border-purple-800/30">
               <div className="text-center mb-5">
                 <h2 className="text-2xl sm:text-3xl font-bold text-amber-300 mb-1">
-                  🔮 Sacred Mandala
+                  🔮 Symmetry Studio
                 </h2>
                 <p className="text-purple-300 text-sm sm:text-base">
                   Press and glide to paint mirrored geometry with instant tones
                 </p>
                 <p className="text-slate-500 text-xs mt-1 italic">
-                  Teacher tip: raise harmony to create more symmetry arms
+                  Guide tip: raise harmony to create more symmetry arms
                 </p>
               </div>
               <div className="flex justify-center" style={{ minHeight: '300px' }}>
@@ -1187,11 +1187,11 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                 />
               </div>
 
-              {/* Consciousness bar — right below the canvas for immediate access */}
+              {/* Focus bar — right below the canvas for immediate access */}
               <div className="mt-6 max-w-lg mx-auto">
                 <div className="flex items-center justify-between mb-2">
                   <label htmlFor="consciousness-slider" className="text-sm font-semibold text-cyan-300">
-                    ✦ Consciousness
+                    ✦ Focus
                   </label>
                   <span className="text-2xl font-bold text-cyan-400 font-mono tabular-nums">
                     {consciousness}%
@@ -1215,18 +1215,18 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
             </div>
           )}
 
-          {/* ── Sound Temple ────────────────────────────────────────────── */}
+          {/* ── Sound Lab ───────────────────────────────────────────────── */}
           {activeMode === 'sound' && (
             <div className="bg-slate-900/60 rounded-3xl p-5 sm:p-10 border border-pink-800/30">
               <div className="text-center mb-8">
                 <h2 className="text-3xl sm:text-4xl font-bold text-amber-300 mb-2">
-                  🎵 Sound Temple
+                  🎵 Sound Lab
                 </h2>
                 <p className="text-pink-300 text-base sm:text-lg mb-1">
                   Tap any bar to hear its DNA note, or play the full sequence as a melody.
                 </p>
                 <p className="text-slate-500 text-xs italic mb-6">
-                  Teacher tip: change the Seed (bottom bar) to hear how different DNA strands sound
+                  Guide tip: change the Seed (bottom bar) to hear different DNA sound patterns
                 </p>
                 <button
                   onClick={playSequence}
@@ -1284,7 +1284,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                   🧭 Guided Journey
                 </h2>
                 <p className="text-center text-slate-400 text-sm mb-8 italic">
-                  Teacher wizard — configure all parameters then send students into a mode
+                  Setup wizard — configure parameters, then launch any activity mode
                 </p>
 
                 <div className="space-y-5">
@@ -1310,7 +1310,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                     </p>
                   </JourneyStep>
 
-                  <JourneyStep step={2} icon="🎼" title="Set the Rhythm" desc="Controls the melody playback speed in Sound Temple">
+                  <JourneyStep step={2} icon="🎼" title="Set the Rhythm" desc="Controls melody playback speed in Sound Lab">
                     <div className="space-y-2">
                       <input
                         type="range" min="60" max="180" value={tempo}
@@ -1321,7 +1321,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                     </div>
                   </JourneyStep>
 
-                  <JourneyStep step={3} icon="✨" title="Awareness Level" desc="How strongly touch pulls the particle field — higher = more dramatic">
+                  <JourneyStep step={3} icon="✨" title="Focus Level" desc="How strongly touch pulls the particle field — higher = more dramatic">
                     <div className="space-y-2">
                       <input
                         type="range" min="0" max="100" value={consciousness}
@@ -1332,7 +1332,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                     </div>
                   </JourneyStep>
 
-                  <JourneyStep step={4} icon="🔢" title="Sacred Number (Harmony)" desc="Sets the symmetry arms in Mandala and helix count in Spiral">
+                  <JourneyStep step={4} icon="🔢" title="Harmony Number" desc="Sets symmetry arms in Studio mode and helix count in Spiral">
                     <div className="flex gap-2 justify-center flex-wrap">
                       {[3, 5, 7, 9, 12].map((num) => (
                         <button
@@ -1354,9 +1354,9 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { mode: 'spiral',    label: '🌀 Enter Helix',      cls: 'from-blue-600   to-blue-700   shadow-blue-500/40'   },
-                        { mode: 'mandala',   label: '🔮 Paint Mandala',    cls: 'from-purple-600 to-purple-700 shadow-purple-500/40' },
+                        { mode: 'mandala',   label: '🔮 Paint Studio',    cls: 'from-purple-600 to-purple-700 shadow-purple-500/40' },
                         { mode: 'particles', label: '✨ Guide Particles',  cls: 'from-cyan-600   to-cyan-700   shadow-cyan-500/40'   },
-                        { mode: 'sound',     label: '🎵 Sound Temple',     cls: 'from-pink-600   to-pink-700   shadow-pink-500/40'   },
+                        { mode: 'sound',     label: '🎵 Sound Lab',     cls: 'from-pink-600   to-pink-700   shadow-pink-500/40'   },
                       ].map(({ mode, label, cls }) => (
                         <button
                           key={mode}
@@ -1409,16 +1409,16 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
 
             <div className="h-7 w-px bg-slate-700 hidden md:block" />
 
-            {/* Consciousness slider — always accessible in the bottom bar */}
+            {/* Focus slider — always accessible in the bottom bar */}
             <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm text-slate-400 shrink-0">✦ {consciousness}%</span>
+              <span className="text-xs sm:text-sm text-slate-400 shrink-0">✦ Focus {consciousness}%</span>
               <input
                 type="range"
                 min="0"
                 max="100"
                 value={consciousness}
                 onChange={(e) => setConsciousness(parseInt(e.target.value, 10))}
-                title="Consciousness — particle attraction strength"
+                title="Focus level — particle attraction strength"
                 className="w-24 sm:w-32 h-2 rounded-full appearance-none cursor-pointer bg-slate-700 accent-cyan-400"
               />
             </div>
@@ -1459,14 +1459,14 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
             </summary>
             <div className="mt-5 text-slate-300 space-y-3 max-w-3xl mx-auto text-sm sm:text-base">
               <p>
-                <strong className="text-amber-400">Digital DNA</strong> turns three sacred number
+                <strong className="text-amber-400">Digital DNA</strong> turns three core number
                 sequences into geometry and sound you can explore with touch, stylus, or mouse.
                 Every digit is simultaneously a <strong className="text-blue-400">shape + colour</strong> and
                 a <strong className="text-pink-400">musical note</strong>.
               </p>
               <p>
-                Use the <strong className="text-purple-400">Guided Journey</strong> as a classroom
-                setup wizard before sending students into any interactive mode. The seed, harmony,
+                Use the <strong className="text-purple-400">Guided Journey</strong> as an all-ages
+                setup guide before launching any interactive mode. The seed, harmony,
                 awareness level, and tempo all carry over.
               </p>
               <p className="text-slate-500 text-xs">
