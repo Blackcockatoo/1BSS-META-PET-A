@@ -8,9 +8,8 @@ import { MiniGamesPanel } from './MiniGamesPanel';
 import { CosmeticsPanel } from './CosmeticsPanel';
 import { AchievementsPanel } from './AchievementsPanel';
 import { PatternRecognitionGame } from './PatternRecognitionGame';
-import DigitalDNAHub from './DigitalDNAHub';
 import { Moss60Hub } from './Moss60Hub';
-import { Map, Swords, Gamepad2, Sparkles, Trophy, Waves, Shield } from 'lucide-react';
+import { Map, Swords, Gamepad2, Sparkles, Trophy, Shield } from 'lucide-react';
 
 export function FeaturesDashboard() {
   const [activeTab, setActiveTab] = useState('vimana');
@@ -18,7 +17,7 @@ export function FeaturesDashboard() {
   return (
     <div className="w-full max-w-4xl mx-auto">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-7 mb-6 h-auto">
+        <TabsList className="grid w-full grid-cols-6 mb-6 h-auto">
           <TabsTrigger value="vimana" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 touch-manipulation">
             <Map className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[10px] sm:text-sm">Explore</span>
@@ -38,10 +37,6 @@ export function FeaturesDashboard() {
           <TabsTrigger value="achievements" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 touch-manipulation">
             <Trophy className="w-5 h-5 sm:w-4 sm:h-4" />
             <span className="text-[10px] sm:text-sm">Rewards</span>
-          </TabsTrigger>
-          <TabsTrigger value="asmr" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 touch-manipulation">
-            <Waves className="w-5 h-5 sm:w-4 sm:h-4" />
-            <span className="text-[10px] sm:text-sm">ASMR</span>
           </TabsTrigger>
           <TabsTrigger value="moss60" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 py-2 touch-manipulation">
             <Shield className="w-5 h-5 sm:w-4 sm:h-4" />
@@ -82,12 +77,6 @@ export function FeaturesDashboard() {
         <TabsContent value="achievements" className="mt-0">
           <div className="bg-zinc-900/80 backdrop-blur rounded-xl p-3 sm:p-6 border border-zinc-800">
             <AchievementsPanel />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="asmr" className="mt-0">
-          <div className="bg-zinc-900/80 backdrop-blur rounded-xl p-3 sm:p-6 border border-zinc-800">
-            <DigitalDNAHub />
           </div>
         </TabsContent>
 

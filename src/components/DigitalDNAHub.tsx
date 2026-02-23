@@ -3,7 +3,7 @@
 /**
  * DigitalDNAHub — Teacher & Student Interactive DNA Visualiser
  *
- * Six interactive modes that turn three sacred number sequences into
+ * Five interactive modes that turn three sacred number sequences into
  * geometry, colour and sound. Works with touch, stylus, trackpad and mouse.
  *
  * Mode overview (teacher reference):
@@ -13,8 +13,6 @@
  *             mirrored (harmony × times) and plays a tone.
  *  particles– Physics particle field. Touch pulls constellations; multiple
  *             simultaneous touch points create interference patterns.
- *  asmr     – ASMMR flow canvas with a 4-phase learning ritual: ripple
- *             attunement → sonic resonance → sustained glide → reflection.
  *  sound    – Bar-chart piano. Tap any bar to play its DNA note, or play
  *             the full sequence as a melody.
  *  journey  – Guided step-by-step classroom setup that feeds all other modes.
@@ -35,7 +33,7 @@ export interface LessonContext {
 }
 
 type SeedKey = 'red' | 'black' | 'blue';
-type ModeKey = 'spiral' | 'mandala' | 'sound' | 'particles' | 'asmr' | 'journey';
+type ModeKey = 'spiral' | 'mandala' | 'sound' | 'particles' | 'journey';
 
 interface PaintPoint { x: number; y: number }
 
@@ -48,39 +46,7 @@ interface Particle {
   mass: number;
 }
 
-interface Ripple {
-  x: number; y: number;
-  radius: number;
-  speed: number;
-  alpha: number;
-  color: string;
-  lineWidth: number;
-}
 
-interface Spark {
-  x: number; y: number;
-  vx: number; vy: number;
-  size: number;
-  alpha: number;
-  color: string;
-}
-
-interface AsmmrRitualState {
-  rippleBursts: number;
-  toneBursts: number;
-  glideCount: number;
-  longestGlideMs: number;
-  completions: number;
-}
-
-interface AsmmrGoal {
-  id: 'ripple' | 'tone' | 'glide' | 'reflect';
-  title: string;
-  hint: string;
-  current: number;
-  target: number;
-  unit: string;
-}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -107,9 +73,9 @@ const COLORS = [
 ] as const;
 
 /**
- * Bright ASMMR-specific palette — distinct from COLORS because the ASMMR
- * canvas uses a near-black background; the main palette's first four entries
- * (#1a1a2e … #533483) are effectively invisible at low alpha on dark surfaces.
+ * Bright palette for dark canvas backgrounds — distinct from COLORS because
+ * the main palette's first four entries (#1a1a2e … #533483) are effectively
+ * invisible at low alpha on dark surfaces. Used by helix, mandala, particles.
  */
 const ASMR_COLORS = [
   '#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa',
@@ -121,12 +87,17 @@ const MIN_SURFACE         = 260;  // px — minimum canvas dimension on any axis
 const MAX_PAINT_POINTS    = 6000;
 const INTERACTION_THROTTLE_MS = 34; // ~29 fps interaction sampling
 
-const ASMMR_TARGETS = {
-  rippleBursts:     18,
-  toneBursts:       8,
-  glideMs:          2600,
-  reflectionChars:  36,
-} as const;
+
+// ─── Canvas helper types ─────────────────────────────────────────────────────
+
+interface Ripple {
+  x: number; y: number;
+  radius: number;
+  speed: number;
+  alpha: number;
+  color: string;
+  lineWidth: number;
+}
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -211,15 +182,6 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
   const [sessionInteractions, setSessionInteractions] = useState(0);
   const [playCount,           setPlayCount]           = useState(0);
   const [visitedModes,        setVisitedModes]        = useState<ModeKey[]>(['spiral']);
-
-  // ASMMR ritual state
-  const [asmmrRitual, setAsmmrRitual] = useState<AsmmrRitualState>({
-    rippleBursts: 0, toneBursts: 0, glideCount: 0, longestGlideMs: 0, completions: 0,
-  });
-  const [asmmrReflection, setAsmmrReflection] = useState('');
-  const [asmmrBlessing,   setAsmmrBlessing]   = useState(
-    'Begin the ASMMR ritual by tracing gentle ripples across the canvas.',
-  );
 
   // ── Store actions ─────────────────────────────────────────────────────────
   const incrementDnaInteraction = useEducationStore((s) => s.incrementDnaInteraction);
@@ -350,83 +312,6 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
     setTimeout(() => setIsPlaying(false), sequence.slice(0, 60).length * interval * 1000);
     registerInteraction(true);
   }, [ensureAudio, getSequence, tempo, registerInteraction]);
-
-  // ── ASMMR ritual helpers ──────────────────────────────────────────────────
-
-  const recordAsmmrRipple = useCallback((amount = 1) => {
-    setAsmmrRitual((p) => ({ ...p, rippleBursts: p.rippleBursts + amount }));
-  }, []);
-
-  const recordAsmmrTone = useCallback((amount = 1) => {
-    setAsmmrRitual((p) => ({ ...p, toneBursts: p.toneBursts + amount }));
-  }, []);
-
-  const recordAsmmrGlide = useCallback((durationMs: number) => {
-    setAsmmrRitual((p) => ({
-      ...p,
-      glideCount:     p.glideCount + 1,
-      longestGlideMs: Math.max(p.longestGlideMs, Math.round(durationMs)),
-    }));
-  }, []);
-
-  const asmmrGoals = useCallback((): AsmmrGoal[] => [
-    {
-      id: 'ripple', title: '1. Ripple Attunement',
-      hint: 'Press and glide to release ripple bursts.',
-      current: asmmrRitual.rippleBursts, target: ASMMR_TARGETS.rippleBursts, unit: 'bursts',
-    },
-    {
-      id: 'tone', title: '2. Sonic Resonance',
-      hint: 'Trigger soft tone pulses while moving.',
-      current: asmmrRitual.toneBursts, target: ASMMR_TARGETS.toneBursts, unit: 'tones',
-    },
-    {
-      id: 'glide', title: '3. Sustained Glide',
-      hint: 'Hold a single glide for at least 2.6 seconds.',
-      current: asmmrRitual.longestGlideMs, target: ASMMR_TARGETS.glideMs, unit: 'ms',
-    },
-    {
-      id: 'reflect', title: '4. Learning Reflection',
-      hint: 'Write what pattern or shift you noticed.',
-      current: asmmrReflection.trim().length, target: ASMMR_TARGETS.reflectionChars, unit: 'chars',
-    },
-  ], [asmmrReflection, asmmrRitual]);
-
-  const asmmrRitualReady = asmmrGoals().every((g) => g.current >= g.target);
-
-  const asmmrFocusScore = clamp(Math.round(
-    (Math.min(asmmrRitual.rippleBursts,   ASMMR_TARGETS.rippleBursts)   / ASMMR_TARGETS.rippleBursts)   * 25
-    + (Math.min(asmmrRitual.toneBursts,   ASMMR_TARGETS.toneBursts)     / ASMMR_TARGETS.toneBursts)     * 25
-    + (Math.min(asmmrRitual.longestGlideMs, ASMMR_TARGETS.glideMs)      / ASMMR_TARGETS.glideMs)        * 25
-    + (Math.min(asmmrReflection.trim().length, ASMMR_TARGETS.reflectionChars) / ASMMR_TARGETS.reflectionChars) * 25,
-  ), 0, 100);
-
-  const completeAsmmrRitual = useCallback(() => {
-    if (!asmmrRitualReady) return;
-    const domain   = selectedSeed === 'red' ? 'fire' : selectedSeed === 'blue' ? 'water' : 'earth';
-    const blessings = [
-      `Your ${domain} strand now carries a calmer sonic signature.`,
-      'The ASMMR sequence stabilized your touch-to-tone feedback loop.',
-      `Ritual cycle sealed — harmony ${harmony} now anchors the field.`,
-      `Your reflection was recorded and the ${domain} circuit is brighter.`,
-    ];
-    const idx = (asmmrRitual.completions + asmmrReflection.trim().length + harmony) % blessings.length;
-    setAsmmrBlessing(blessings[idx]);
-    setAsmmrReflection('');
-    setAsmmrRitual((p) => ({
-      ...p, rippleBursts: 0, toneBursts: 0, glideCount: 0, longestGlideMs: 0,
-      completions: p.completions + 1,
-    }));
-    pulseHaptic(18);
-    registerInteraction(true);
-  }, [asmmrReflection, asmmrRitual.completions, asmmrRitualReady, harmony, pulseHaptic, registerInteraction, selectedSeed]);
-
-  const resetAsmmrRitual = useCallback(() => {
-    setAsmmrRitual({ rippleBursts: 0, toneBursts: 0, glideCount: 0, longestGlideMs: 0, completions: 0 });
-    setAsmmrReflection('');
-    setAsmmrBlessing('ASMMR ritual metrics reset. Begin a new learning cycle.');
-    registerInteraction(true);
-  }, [registerInteraction]);
 
   // ── Keep paint ref in sync with state ────────────────────────────────────
   useEffect(() => { paintedPatternRef.current = paintedPattern; }, [paintedPattern]);
@@ -1111,186 +996,6 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
   }, [activeMode, selectedSeed, consciousness, getSequence, ensureAudio, playChord, registerInteraction, pulseHaptic]);
 
   // ══════════════════════════════════════════════════════════════════════════
-  // ASMMR Flow Canvas (2-D ripple + spark canvas)
-  // ══════════════════════════════════════════════════════════════════════════
-  useEffect(() => {
-    if (!surfaceCanvasRef.current || activeMode !== 'asmr') return;
-
-    const canvas  = surfaceCanvasRef.current;
-    let setup     = setupHiDpiCanvas(canvas, 800, 800);
-    if (!setup) return;
-
-    let { ctx, width: W, height: H } = setup;
-    const sequence = getSequence();
-    const pointers = new Map<number, { x: number; y: number; lastEmit: number; startAt: number }>();
-    const ripples: Ripple[] = [];
-    const sparks:  Spark[]  = [];
-    let lastToneAt = 0;
-
-    const resize = () => {
-      const host = canvas.parentElement;
-      if (!host) return;
-      const side = Math.round(clamp(
-        Math.min(host.clientWidth, window.innerHeight * 0.62),
-        MIN_SURFACE, 900,
-      ));
-      setup = setupHiDpiCanvas(canvas, side, side);
-      if (!setup) return;
-      ({ ctx, width: W, height: H } = setup);
-    };
-
-    resize();
-    const ro = new ResizeObserver(resize);
-    if (canvas.parentElement) ro.observe(canvas.parentElement);
-    window.addEventListener('resize', resize);
-
-    const noteAtPoint = (x: number, y: number) => {
-      const mix = ((x / Math.max(1, W)) + (y / Math.max(1, H))) * 0.5;
-      return sequence[Math.floor(mix * sequence.length) % sequence.length];
-    };
-
-    /**
-     * FIX: Use ASMR_COLORS (bright palette) instead of COLORS (dark palette).
-     * The COLORS array's first four entries are near-black (#1a1a2e … #533483)
-     * which were invisible on the dark ASMMR canvas background.
-     */
-    const emitRipple = (x: number, y: number, intense = false, countForRitual = false) => {
-      const digit = noteAtPoint(x, y);
-      ripples.push({
-        x, y,
-        radius:    intense ? 10 : 5,
-        speed:     intense ? 2.3 : 1.6,
-        alpha:     intense ? 0.88 : 0.65,
-        color:     digitToAsmrColor(digit),
-        lineWidth: intense ? 3.2 : 1.8,
-      });
-      if (countForRitual) recordAsmmrRipple();
-    };
-
-    const emitSparks = (x: number, y: number, count: number) => {
-      const digit = noteAtPoint(x, y);
-      for (let i = 0; i < count; i++) {
-        const angle = (Math.PI * 2 * i) / count + Math.random() * 0.4;
-        const speed = 0.45 + Math.random() * 1.1;
-        sparks.push({
-          x, y,
-          vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-          size: 1.8 + Math.random() * 2.2, alpha: 0.85,
-          color: digitToAsmrColor(digit),
-        });
-      }
-    };
-
-    const triggerTone = (digit: number) => { playChord([digit]); recordAsmmrTone(); };
-
-    const onDown = (e: PointerEvent) => {
-      e.preventDefault();
-      const pt  = localPointFromEvent(canvas, e);
-      const now = performance.now();
-      canvas.setPointerCapture(e.pointerId);
-      pointers.set(e.pointerId, { ...pt, lastEmit: now, startAt: now });
-      void ensureAudio().then(() => triggerTone(noteAtPoint(pt.x, pt.y)));
-      emitRipple(pt.x, pt.y, true, true);
-      emitSparks(pt.x, pt.y, 12);
-      pulseHaptic(11);
-      registerInteraction(true);
-    };
-    const onMove = (e: PointerEvent) => {
-      const state = pointers.get(e.pointerId);
-      if (!state) return;
-      const pt  = localPointFromEvent(canvas, e);
-      const now = performance.now();
-      pointers.set(e.pointerId, { ...pt, lastEmit: state.lastEmit, startAt: state.startAt });
-      if (now - state.lastEmit < 66) return;
-      pointers.set(e.pointerId, { ...pt, lastEmit: now, startAt: state.startAt });
-      emitRipple(pt.x, pt.y, false, true);
-      emitSparks(pt.x, pt.y, 3);
-      if (now - lastToneAt > 92) { triggerTone(noteAtPoint(pt.x, pt.y)); lastToneAt = now; }
-      registerInteraction();
-    };
-    const onUp = (e: PointerEvent) => {
-      const state = pointers.get(e.pointerId);
-      const pt    = localPointFromEvent(canvas, e);
-      emitRipple(pt.x, pt.y, true, true);
-      emitSparks(pt.x, pt.y, 8);
-      if (state) {
-        const dur = performance.now() - state.startAt;
-        if (dur >= 420) recordAsmmrGlide(dur);
-      }
-      pointers.delete(e.pointerId);
-      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
-    };
-
-    canvas.style.touchAction = 'none';
-    canvas.addEventListener('pointerdown',   onDown);
-    canvas.addEventListener('pointermove',   onMove);
-    canvas.addEventListener('pointerup',     onUp);
-    canvas.addEventListener('pointercancel', onUp);
-
-    let animId = 0;
-    const animate = () => {
-      animId = requestAnimationFrame(animate);
-
-      // Subtle trail fill — low alpha preserves previous frames as ghosts
-      const bg = ctx.createLinearGradient(0, 0, W, H);
-      bg.addColorStop(0, 'rgba(7,12,28,0.22)');
-      bg.addColorStop(1, 'rgba(6,9,20,0.18)');
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, W, H);
-
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-
-      for (let i = ripples.length - 1; i >= 0; i--) {
-        const r = ripples[i];
-        r.radius += r.speed; r.alpha -= 0.013; r.lineWidth *= 0.995;
-        if (r.alpha <= 0.02) { ripples.splice(i, 1); continue; }
-
-        // Append hex alpha to the 6-digit hex colour string
-        const hexAlpha = Math.floor(r.alpha * 255).toString(16).padStart(2, '0');
-        ctx.beginPath();
-        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = `${r.color}${hexAlpha}`;
-        ctx.lineWidth   = r.lineWidth;
-        ctx.shadowBlur  = 18;
-        ctx.shadowColor = r.color;
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
-
-      for (let i = sparks.length - 1; i >= 0; i--) {
-        const s = sparks[i];
-        s.x += s.vx; s.y += s.vy;
-        s.vx *= 0.987; s.vy *= 0.987;
-        s.alpha -= 0.018;
-        if (s.alpha <= 0.03) { sparks.splice(i, 1); continue; }
-        const hexAlpha = Math.floor(s.alpha * 255).toString(16).padStart(2, '0');
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-        ctx.fillStyle = `${s.color}${hexAlpha}`;
-        ctx.fill();
-      }
-      ctx.restore();
-
-      // Ambient idle ripples when no fingers are active
-      if (pointers.size === 0 && Math.random() < 0.03 && ripples.length < 20) {
-        emitRipple(W * (0.35 + Math.random() * 0.3), H * (0.35 + Math.random() * 0.3), false);
-      }
-    };
-    animate();
-
-    return () => {
-      cancelAnimationFrame(animId);
-      ro.disconnect();
-      window.removeEventListener('resize', resize);
-      canvas.removeEventListener('pointerdown',   onDown);
-      canvas.removeEventListener('pointermove',   onMove);
-      canvas.removeEventListener('pointerup',     onUp);
-      canvas.removeEventListener('pointercancel', onUp);
-    };
-  }, [activeMode, selectedSeed, getSequence, ensureAudio, playChord, recordAsmmrGlide, recordAsmmrRipple, recordAsmmrTone, registerInteraction, pulseHaptic]);
-
-  // ══════════════════════════════════════════════════════════════════════════
   // Mission cards & mode metadata
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -1310,18 +1015,12 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
       progress: playCount > 0 ? 'Done ✓' : 'Pending',
       done: playCount > 0,
     },
-    {
-      id: 'asmmr',      title: 'Seal an ASMMR Ritual',
-      progress: asmmrRitual.completions > 0 ? `${asmmrRitual.completions} cycles` : 'Pending',
-      done: asmmrRitual.completions > 0,
-    },
   ];
 
   const modes: { id: ModeKey; icon: string; label: string; desc: string }[] = [
     { id: 'spiral',    icon: '🌀', label: 'DNA Helix',      desc: 'Drag · pinch · tap nodes' },
     { id: 'mandala',   icon: '🔮', label: 'Sacred Mandala', desc: 'Finger-paint symmetry'    },
     { id: 'particles', icon: '✨', label: 'Particle Field',  desc: 'Guide constellations'     },
-    { id: 'asmr',      icon: '🌊', label: 'ASMMR Ritual',   desc: 'Flow + learning loop'     },
     { id: 'sound',     icon: '🎵', label: 'Sound Temple',   desc: 'Tap bars to play notes'   },
     { id: 'journey',   icon: '🧭', label: 'Guided Journey', desc: 'Classroom setup wizard'   },
   ];
@@ -1379,7 +1078,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
         </div>
 
         {/* ── Mode selector ─────────────────────────────────────────────────── */}
-        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {modes.map((mode) => (
             <button
               key={mode.id}
@@ -1511,141 +1210,6 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                   <span>Calm drift</span>
                   <span>Particles respond more strongly to touch →</span>
                   <span>Full pull</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── ASMMR Ritual ────────────────────────────────────────────── */}
-          {activeMode === 'asmr' && (
-            <div className="bg-slate-900/60 rounded-3xl p-4 sm:p-8 border border-emerald-800/30">
-              <div className="text-center mb-5">
-                <h2 className="text-2xl sm:text-3xl font-bold text-amber-300 mb-1">
-                  🌊 ASMMR Learning Ritual
-                </h2>
-                <p className="text-emerald-300 text-sm sm:text-base">
-                  Press and glide on the canvas · complete the 4-phase ritual · seal it
-                </p>
-                <p className="text-slate-500 text-xs mt-1 italic">
-                  Teacher tip: guide the class through all 4 phases before sealing
-                </p>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
-                {/* Canvas */}
-                <div className="flex justify-center" style={{ minHeight: '300px' }}>
-                  <canvas
-                    ref={surfaceCanvasRef}
-                    className="rounded-xl shadow-2xl shadow-emerald-900/60 border border-emerald-700/30"
-                  />
-                </div>
-
-                {/* Ritual sidebar */}
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/25 p-4 space-y-4">
-
-                  {/* Focus score */}
-                  <div className="rounded-xl border border-emerald-600/30 bg-slate-900/60 p-3">
-                    <div className="text-[10px] uppercase tracking-widest text-emerald-300 mb-1">
-                      Ritual Focus Score
-                    </div>
-                    <div className="flex items-end justify-between mb-2">
-                      <span className="text-2xl font-bold text-emerald-200">{asmmrFocusScore}%</span>
-                      <span className="text-xs text-zinc-400">{asmmrRitual.glideCount} glides</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-800">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-500"
-                        style={{ width: `${asmmrFocusScore}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Phase goals */}
-                  <div className="space-y-2">
-                    {asmmrGoals().map((goal) => {
-                      const done    = goal.current >= goal.target;
-                      const current = Math.min(goal.current, goal.target);
-                      const pct     = clamp(Math.round((current / goal.target) * 100), 0, 100);
-                      return (
-                        <div
-                          key={goal.id}
-                          className={`rounded-xl border p-3 transition-colors ${
-                            done
-                              ? 'border-emerald-400/50 bg-emerald-400/10'
-                              : 'border-slate-700/70 bg-slate-900/50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2 text-xs mb-2">
-                            <span className="font-semibold text-zinc-100">{goal.title}</span>
-                            <span className={done ? 'text-emerald-300 font-mono' : 'text-zinc-400 font-mono'}>
-                              {current}/{goal.target} {goal.unit}
-                            </span>
-                          </div>
-                          <div className="h-1.5 rounded-full bg-slate-800">
-                            <div
-                              className={`h-full rounded-full transition-all ${
-                                done
-                                  ? 'bg-gradient-to-r from-emerald-400 to-teal-300'
-                                  : 'bg-gradient-to-r from-cyan-400 to-blue-400'
-                              }`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <p className="mt-1.5 text-[11px] text-zinc-400">{goal.hint}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Reflection textarea */}
-                  <div className="space-y-1.5">
-                    <label htmlFor="asmmr-reflection" className="text-xs uppercase tracking-widest text-zinc-400">
-                      Phase 4 — Learning Reflection
-                    </label>
-                    <textarea
-                      id="asmmr-reflection"
-                      value={asmmrReflection}
-                      onChange={(e) => setAsmmrReflection(e.target.value)}
-                      placeholder="What changed in your attention while gliding?"
-                      rows={3}
-                      className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-zinc-100 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400/70"
-                    />
-                    <p className="text-[11px] text-zinc-500">
-                      Minimum {ASMMR_TARGETS.reflectionChars} characters — currently {asmmrReflection.trim().length}
-                    </p>
-                  </div>
-
-                  {/* Seal / Reset buttons */}
-                  <button
-                    onClick={completeAsmmrRitual}
-                    disabled={!asmmrRitualReady}
-                    className={`w-full rounded-xl py-3 text-sm font-semibold transition-all ${
-                      asmmrRitualReady
-                        ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 shadow-lg shadow-emerald-500/30 hover:from-emerald-400 hover:to-cyan-400 active:scale-95'
-                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                    }`}
-                  >
-                    {asmmrRitualReady ? '🌟 Seal ASMMR Learning Ritual' : 'Complete All 4 Ritual Phases'}
-                  </button>
-
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-zinc-400">
-                      Completed cycles:{' '}
-                      <span className="text-emerald-300 font-semibold">{asmmrRitual.completions}</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={resetAsmmrRitual}
-                      className="text-cyan-300 hover:text-cyan-200 underline underline-offset-4 transition-colors"
-                    >
-                      Reset Ritual
-                    </button>
-                  </div>
-
-                  {/* Blessing / feedback message */}
-                  <div className="rounded-xl border border-cyan-600/30 bg-cyan-950/30 p-3">
-                    <p className="text-xs text-cyan-100 leading-relaxed">{asmmrBlessing}</p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1792,7 +1356,7 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                         { mode: 'spiral',    label: '🌀 Enter Helix',      cls: 'from-blue-600   to-blue-700   shadow-blue-500/40'   },
                         { mode: 'mandala',   label: '🔮 Paint Mandala',    cls: 'from-purple-600 to-purple-700 shadow-purple-500/40' },
                         { mode: 'particles', label: '✨ Guide Particles',  cls: 'from-cyan-600   to-cyan-700   shadow-cyan-500/40'   },
-                        { mode: 'asmr',      label: '🌊 ASMMR Ritual',    cls: 'from-emerald-600 to-emerald-700 shadow-emerald-500/40' },
+                        { mode: 'sound',     label: '🎵 Sound Temple',     cls: 'from-pink-600   to-pink-700   shadow-pink-500/40'   },
                       ].map(({ mode, label, cls }) => (
                         <button
                           key={mode}
@@ -1901,17 +1465,12 @@ export default function DigitalDNAHub({ lessonContext }: { lessonContext?: Lesso
                 a <strong className="text-pink-400">musical note</strong>.
               </p>
               <p>
-                <strong className="text-emerald-400">ASMMR Ritual</strong> guides students through a
-                4-phase calming sequence — ripple attunement, sonic resonance, sustained glide, and
-                written reflection — that ends with a focus score and a blessing message.
-              </p>
-              <p>
                 Use the <strong className="text-purple-400">Guided Journey</strong> as a classroom
                 setup wizard before sending students into any interactive mode. The seed, harmony,
                 awareness level, and tempo all carry over.
               </p>
               <p className="text-slate-500 text-xs">
-                Sessions auto-track: modes visited, total interactions, melody plays, and ASMMR ritual completions.
+                Sessions auto-track: modes visited, total interactions, and melody plays.
               </p>
             </div>
           </details>
