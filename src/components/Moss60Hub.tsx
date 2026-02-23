@@ -22,6 +22,14 @@ import {
   PHI,
   PRIMES,
 } from '@/lib/qr-messaging/crypto';
+import {
+  computeGlyphDeterministicHash,
+  createGlyphMetadata,
+  type GlyphLineageEntry,
+  type GlyphMetadata,
+  parseGlyphMetadata,
+  serializeGlyphMetadata,
+} from '@/lib/moss60/glyphMetadata';
 import { Download, RefreshCw, Lock, Unlock, Key, Orbit, Layers } from 'lucide-react';
 import { CrystallineNetwork } from './CrystallineNetwork';
 
@@ -47,7 +55,82 @@ function lerpColor(a: string, b: string, t: number): string {
   return `rgb(${r},${g},${bl})`;
 }
 
-function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string; animating: boolean }) {
+function downloadTextFile(filename: string, content: string, mime = 'application/json') {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.download = filename;
+  a.href = url;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildGlyphPoints(width: number, height: number) {
+  const cx = width / 2;
+  const cy = height / 2;
+  const baseR = Math.min(width, height) * 0.38;
+
+  return Array.from({ length: 60 }, (_, i) => {
+    const angle = (i / 60) * 2 * Math.PI * PHI;
+    const wobble = 1 + 0.12 * Math.sin(i * PHI * 0.5);
+    const r = baseR * wobble;
+    return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+  });
+}
+
+function buildGlyphSVG(metadata: GlyphMetadata): string {
+  const width = 320;
+  const height = 320;
+  const pairs = COLOR_SCHEMES[metadata.scheme] ?? COLOR_SCHEMES['Spectral'];
+  const hashVal = parseInt(metadata.seedHash.slice(0, 4), 16) / 0xffff;
+  const points = buildGlyphPoints(width, height);
+
+  const lines = Array.from({ length: 60 }, (_, i) => {
+    if (!PRIMES.has(i)) return '';
+
+    return Array.from({ length: 3 }, (_, idx) => {
+      const step = idx + 1;
+      const j = (i + step * 7) % 60;
+      const t = (i / 60 + hashVal) % 1;
+      const pairIdx = Math.floor(t * pairs.length) % pairs.length;
+      const [ca, cb] = pairs[pairIdx];
+      const color = lerpColor(ca, cb, t);
+      const alpha = 0.25 + 0.25 * step;
+      const lineWidth = step === 1 ? 1.2 : 0.6;
+
+      return `<line x1="${points[i].x.toFixed(3)}" y1="${points[i].y.toFixed(3)}" x2="${points[j].x.toFixed(3)}" y2="${points[j].y.toFixed(3)}" stroke="${color}" stroke-opacity="${alpha.toFixed(3)}" stroke-width="${lineWidth}" />`;
+    }).join('');
+  }).join('');
+
+  const dots = points.map((point, i) => {
+    const isPrime = PRIMES.has(i);
+    const t = i / 60;
+    const pairIdx = Math.floor(t * pairs.length) % pairs.length;
+    const [ca, cb] = pairs[pairIdx];
+    const color = lerpColor(ca, cb, t);
+    return `<circle cx="${point.x.toFixed(3)}" cy="${point.y.toFixed(3)}" r="${isPrime ? 3 : 1.5}" fill="${color}" fill-opacity="${isPrime ? 0.9 : 0.4}" />`;
+  }).join('');
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="MOSS60 glyph">
+  <metadata>${serializeGlyphMetadata(metadata)}</metadata>
+  <rect width="100%" height="100%" fill="#000" />
+  <g>${lines}${dots}</g>
+</svg>`;
+}
+
+function GlyphCanvas({
+  seed,
+  scheme,
+  animating,
+  lineage,
+  seedHashOverride,
+}: {
+  seed: string;
+  scheme: string;
+  animating: boolean;
+  lineage?: GlyphLineageEntry[];
+  seedHashOverride?: string;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef    = useRef<number>(0);
   const timeRef   = useRef<number>(0);
@@ -69,7 +152,7 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
     ctx.fillRect(0, 0, W, H);
 
     const pairs = COLOR_SCHEMES[scheme] ?? COLOR_SCHEMES['Spectral'];
-    const hash = seed ? moss60Hash(seed) : 'deadbeef';
+    const hash = seedHashOverride ?? (seed ? moss60Hash(seed) : 'deadbeef');
     const hashVal = parseInt(hash.slice(0, 4), 16) / 0xffff;
 
     // Generate 60 points along a PHI spiral
@@ -114,7 +197,7 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
       ctx.fill();
       ctx.globalAlpha = 1;
     }
-  }, [seed, scheme]);
+  }, [seed, scheme, seedHashOverride]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -137,13 +220,31 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
     }
   }, [animating, draw]);
 
-  function downloadPNG() {
+  function makeMetadata(): GlyphMetadata {
+    return {
+      ...createGlyphMetadata({ seed, scheme, lineage }),
+      ...(seedHashOverride ? { seedHash: seedHashOverride } : {}),
+    };
+  }
+
+  function downloadPNGWithMetadata() {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const timestamp = Date.now();
+    const baseName = `moss60-glyph-${timestamp}`;
     const a = document.createElement('a');
-    a.download = `moss60-glyph-${Date.now()}.png`;
+    a.download = `${baseName}.png`;
     a.href = canvas.toDataURL('image/png');
     a.click();
+
+    const metadata = makeMetadata();
+    downloadTextFile(`${baseName}.json`, serializeGlyphMetadata(metadata));
+  }
+
+  function downloadSVG() {
+    const metadata = makeMetadata();
+    const svg = buildGlyphSVG(metadata);
+    downloadTextFile(`moss60-glyph-${Date.now()}.svg`, svg, 'image/svg+xml');
   }
 
   return (
@@ -155,10 +256,16 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
         className="rounded-xl border border-slate-700 bg-black"
       />
       <button
-        onClick={downloadPNG}
+        onClick={downloadPNGWithMetadata}
         className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
       >
-        <Download className="w-3 h-3" /> Save PNG
+        <Download className="w-3 h-3" /> Save PNG + JSON
+      </button>
+      <button
+        onClick={downloadSVG}
+        className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+      >
+        <Download className="w-3 h-3" /> Save SVG
       </button>
     </div>
   );
@@ -422,8 +529,53 @@ export function Moss60Hub() {
   const [glyphSeed, setGlyphSeed]   = useState('');
   const [scheme, setScheme]         = useState('Spectral');
   const [animating, setAnimating]   = useState(true);
+  const [lineage, setLineage]       = useState<GlyphLineageEntry[]>([]);
+  const [verifyJson, setVerifyJson] = useState('');
+  const [verifyResult, setVerifyResult] = useState<{ valid: boolean; message: string; hash?: string } | null>(null);
+  const [verifiedMetadata, setVerifiedMetadata] = useState<GlyphMetadata | null>(null);
   const [projection, setProjection] = useState<Projection>('sphere');
   const [realitySeed, setRealitySeed] = useState('');
+
+  useEffect(() => {
+    const currentHash = moss60Hash(glyphSeed || '');
+    setLineage(previous => {
+      const latest = previous[previous.length - 1];
+      if (latest?.toSeedHash === currentHash) return previous;
+
+      const fromSeedHash = latest?.toSeedHash ?? currentHash;
+      if (fromSeedHash === currentHash && previous.length > 0) return previous;
+
+      const next = [...previous, {
+        fromSeedHash,
+        toSeedHash: currentHash,
+        timestamp: new Date().toISOString(),
+      }];
+
+      return next.slice(-8);
+    });
+  }, [glyphSeed]);
+
+  function verifyGlyphMetadata() {
+    try {
+      const parsed = parseGlyphMetadata(verifyJson);
+      const canonical = serializeGlyphMetadata(parsed);
+      const reparsed = parseGlyphMetadata(canonical);
+      const hashA = computeGlyphDeterministicHash(parsed);
+      const hashB = computeGlyphDeterministicHash(reparsed);
+
+      if (hashA !== hashB) {
+        setVerifyResult({ valid: false, message: 'Deterministic hash mismatch after re-serialization.' });
+        setVerifiedMetadata(null);
+        return;
+      }
+
+      setVerifiedMetadata(parsed);
+      setVerifyResult({ valid: true, hash: hashA, message: 'Metadata valid. Deterministic render hash is stable.' });
+    } catch (error) {
+      setVerifiedMetadata(null);
+      setVerifyResult({ valid: false, message: error instanceof Error ? error.message : 'Unable to parse metadata JSON.' });
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -472,7 +624,49 @@ export function Moss60Hub() {
               {animating ? 'Pause' : 'Animate'}
             </button>
           </div>
-          <GlyphCanvas seed={glyphSeed} scheme={scheme} animating={animating} />
+          <GlyphCanvas seed={glyphSeed} scheme={scheme} animating={animating} lineage={lineage} />
+
+          <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-3 space-y-2">
+            <p className="text-xs font-semibold text-zinc-300">Lineage continuity</p>
+            {lineage.length === 0 ? (
+              <p className="text-xs text-zinc-500">No transitions recorded yet.</p>
+            ) : (
+              <ul className="space-y-1 text-[11px] text-zinc-400">
+                {lineage.slice().reverse().map((entry, idx) => (
+                  <li key={`${entry.timestamp}-${idx}`} className="font-mono">
+                    {entry.fromSeedHash.slice(0, 8)} → {entry.toSeedHash.slice(0, 8)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-3 space-y-2">
+            <p className="text-xs font-semibold text-zinc-300">Verify Glyph</p>
+            <textarea
+              value={verifyJson}
+              onChange={e => setVerifyJson(e.target.value)}
+              rows={6}
+              placeholder="Paste exported glyph metadata JSON..."
+              className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs font-mono text-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-y"
+            />
+            <Button size="sm" onClick={verifyGlyphMetadata} disabled={!verifyJson.trim()}>Verify</Button>
+            {verifyResult && (
+              <p className={`text-xs ${verifyResult.valid ? 'text-emerald-400' : 'text-red-400'}`}>
+                {verifyResult.message}
+                {verifyResult.hash ? ` (${verifyResult.hash.slice(0, 16)}…)` : ''}
+              </p>
+            )}
+            {verifiedMetadata && (
+              <GlyphCanvas
+                seed=""
+                seedHashOverride={verifiedMetadata.seedHash}
+                scheme={verifiedMetadata.scheme}
+                animating={false}
+                lineage={verifiedMetadata.lineage}
+              />
+            )}
+          </div>
         </TabsContent>
 
         {/* ── QR Cipher ── */}
