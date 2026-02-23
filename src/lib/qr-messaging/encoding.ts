@@ -3,6 +3,8 @@
  * Compact encoding using a 60-character alphabet
  */
 
+import { MOSS60_PREFIX } from './types';
+
 /**
  * Base-60 alphabet - safe, distinguishable characters
  * Excludes similar-looking characters (I, l, O, o, 0)
@@ -93,7 +95,7 @@ export function fromBase60ToString(encoded: string): string {
  * @returns MOSS60-prefixed Base-60 string
  */
 export function encodeMoss60(data: string | Uint8Array): string {
-  return `MOSS60:${toBase60(data)}`;
+  return `${MOSS60_PREFIX}${toBase60(data)}`;
 }
 
 /**
@@ -102,8 +104,8 @@ export function encodeMoss60(data: string | Uint8Array): string {
  * @returns Decoded string
  */
 export function decodeMoss60(encoded: string): string {
-  if (encoded.startsWith('MOSS60:')) {
-    return fromBase60ToString(encoded.substring(7));
+  if (encoded.startsWith(MOSS60_PREFIX)) {
+    return fromBase60ToString(encoded.substring(MOSS60_PREFIX.length));
   }
   // Assume it's plain Base-60
   return fromBase60ToString(encoded);
@@ -129,7 +131,7 @@ export function isValidBase60(str: string): boolean {
  * @returns True if MOSS60 format
  */
 export function isMoss60Format(str: string): boolean {
-  return str.startsWith('MOSS60:') && isValidBase60(str.substring(7));
+  return str.startsWith(MOSS60_PREFIX) && isValidBase60(str.substring(MOSS60_PREFIX.length));
 }
 
 /**
