@@ -153,6 +153,10 @@ Visit `http://localhost:3000`
 - Pilot v1 scope freeze (Day 1): `docs/curriculum-os/pilot-v1-scope.md`
 - Pilot v1 internal runbook (Day 1): `docs/curriculum-os/pilot-v1-runbook-internal.md`
 
+## MOSS60 Network Docs
+
+- Crystalline network architecture + reuse notes: `docs/systems/crystalline-network.md`
+
 ---
 
 ## What Works
