@@ -221,9 +221,16 @@ Auto-saved every 60 seconds:
 ## 🚀 Getting Started
 
 ```bash
-# Start dev server
+# Install dependencies (deterministic lockfile install)
 cd meta-pet
+npm ci
+
+# Start dev server
 npm run dev
+
+# Run checks
+npm run lint
+npm test
 
 # Visit
 http://localhost:3000

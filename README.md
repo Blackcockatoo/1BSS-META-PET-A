@@ -132,8 +132,12 @@ meta-pet/
 
 ```bash
 cd meta-pet
-bun install
-bun dev
+npm ci
+npm run dev
+
+# Run checks
+npm run lint
+npm test
 ```
 
 Visit `http://localhost:3000`
