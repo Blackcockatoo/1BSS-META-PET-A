@@ -8,6 +8,9 @@ interface Particle {
   y: number;
   vx: number;
   vy: number;
+  swayPhase: number;
+  swaySpeed: number;
+  drift: number;
   size: number;
   opacity: number;
   color: string;
@@ -23,6 +26,7 @@ export function AmbientParticles({ enabled = true }: { enabled?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animationRef = useRef<number>(0);
+  const pointerRef = useRef({ x: 0, y: 0, active: false });
 
   const vitals = useStore(state => state.vitals);
 
@@ -86,17 +90,50 @@ export function AmbientParticles({ enabled = true }: { enabled?: boolean }) {
     const resizeCanvas = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+
+      // Keep particle positions proportional when viewport changes.
+      particlesRef.current = particlesRef.current.map(p => ({
+        ...p,
+        x: Math.min(canvas.width, Math.max(0, p.x)),
+        y: Math.min(canvas.height, Math.max(-20, p.y)),
+      }));
     };
+
+    const updatePointer = (x: number, y: number) => {
+      pointerRef.current = { x, y, active: true };
+    };
+
+    const handleMouseMove = (event: MouseEvent) => {
+      updatePointer(event.clientX, event.clientY);
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+      updatePointer(touch.clientX, touch.clientY);
+    };
+
+    const clearPointer = () => {
+      pointerRef.current.active = false;
+    };
+
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('touchend', clearPointer, { passive: true });
+    window.addEventListener('mouseleave', clearPointer);
 
     const spawnParticle = () => {
       const colors = moodConfig.colors;
       const particle: Particle = {
         x: Math.random() * canvas.width,
         y: canvas.height + 10,
-        vx: (Math.random() - 0.5) * moodConfig.speed,
+        vx: (Math.random() - 0.5) * moodConfig.speed * 1.4,
         vy: -Math.random() * moodConfig.speed - 0.3,
+        swayPhase: Math.random() * Math.PI * 2,
+        swaySpeed: 0.008 + Math.random() * 0.02,
+        drift: (Math.random() - 0.5) * 0.5,
         size: Math.random() * 3 + 1,
         opacity: Math.random() * 0.5 + 0.3,
         color: colors[Math.floor(Math.random() * colors.length)],
@@ -118,9 +155,34 @@ export function AmbientParticles({ enabled = true }: { enabled?: boolean }) {
       particlesRef.current = particlesRef.current.filter(p => {
         p.life++;
 
-        // Float upward with slight wave motion
-        p.x += p.vx + Math.sin(p.life * 0.02) * 0.3 * moodConfig.floatStrength;
+        // Float upward with unique wave motion per particle.
+        p.x +=
+          p.vx +
+          p.drift +
+          Math.sin(p.life * p.swaySpeed + p.swayPhase) * 0.4 * moodConfig.floatStrength;
         p.y += p.vy;
+
+        // Keep the field naturally spread so particles don't collapse toward center.
+        if (p.x < -20 || p.x > canvas.width + 20) {
+          p.vx *= -1;
+          p.drift *= -1;
+          p.x = Math.min(canvas.width + 20, Math.max(-20, p.x));
+        }
+
+        // React to cursor/touch position to make ambience feel aware.
+        if (pointerRef.current.active) {
+          const dx = p.x - pointerRef.current.x;
+          const dy = p.y - pointerRef.current.y;
+          const distanceSq = dx * dx + dy * dy;
+          const influenceRadius = 180;
+
+          if (distanceSq > 0 && distanceSq < influenceRadius * influenceRadius) {
+            const distance = Math.sqrt(distanceSq);
+            const force = ((influenceRadius - distance) / influenceRadius) * 0.18;
+            p.x += (dx / distance) * force * 8;
+            p.y += (dy / distance) * force * 2;
+          }
+        }
 
         // Fade based on life
         const lifeRatio = p.life / p.maxLife;
@@ -148,6 +210,10 @@ export function AmbientParticles({ enabled = true }: { enabled?: boolean }) {
 
     return () => {
       window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', clearPointer);
+      window.removeEventListener('mouseleave', clearPointer);
       cancelAnimationFrame(animationRef.current);
     };
   }, [moodConfig, enabled]);
