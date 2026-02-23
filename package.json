@@ -10,7 +10,8 @@
     "format": "npx biome format --write",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "check:moss60-copy": "node scripts/check-moss60-copy.mjs"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",

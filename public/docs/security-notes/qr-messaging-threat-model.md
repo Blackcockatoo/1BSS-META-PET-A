@@ -1,5 +1,10 @@
 # QR Messaging Security Notes (Threat Model)
 
+## Terminology alignment
+
+- In-app language should describe MOSS60 QR messaging as an **experimental cryptographic/visual protocol**.
+- Avoid legacy claims of resistance to quantum attacks unless a formally specified and audited mode is introduced.
+
 ## What is guaranteed
 
 - **Tamper-evident payload checks:** QR payloads include hashes so edits are detectable during validation.
