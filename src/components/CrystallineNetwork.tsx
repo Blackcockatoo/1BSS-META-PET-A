@@ -279,11 +279,11 @@ function project4D(
   // XW plane (τ₁ = φ-scaled rate for irrational winding)
   const a = t * 0.00038 * PHI;
   let x1 = x * Math.cos(a) - w * Math.sin(a);
-  let w1 = x * Math.sin(a) + w * Math.cos(a);
+  const w1 = x * Math.sin(a) + w * Math.cos(a);
   // YZ plane
   const b = t * 0.00027;
   let y1 = y * Math.cos(b) - z * Math.sin(b);
-  let z1 = y * Math.sin(b) + z * Math.cos(b);
+  const z1 = y * Math.sin(b) + z * Math.cos(b);
   // XY plane
   const c = t * 0.00052;
   const x2 = x1 * Math.cos(c) - y1 * Math.sin(c);
