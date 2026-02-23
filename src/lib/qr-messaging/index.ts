@@ -8,6 +8,7 @@ export type {
   EncodingFormat,
   ErrorCorrectionLevel,
   EncryptionMode,
+  CryptoMode,
   KeyPair,
   HandshakeState,
   EncryptedMessage,
