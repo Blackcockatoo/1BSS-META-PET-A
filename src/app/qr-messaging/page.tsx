@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QRMessagingPage } from '@/components/QRMessaging';
+import { moss60MessagingContent } from '@/lib/qr-messaging/content';
 
 export default function QRMessagingRoute() {
   return (
@@ -20,8 +21,18 @@ export default function QRMessagingRoute() {
 
           <div className="flex items-center gap-2 text-zinc-500 text-sm">
             <Sparkles className="w-4 h-4" />
-            <span>MOSS60 Cryptographic Platform</span>
+            <span>{moss60MessagingContent.tagline}</span>
           </div>
+        </div>
+
+        <div className="mb-6 rounded-lg border border-cyan-500/20 bg-slate-900/60 p-3 text-xs text-zinc-300 space-y-2">
+          <p className="font-semibold text-cyan-300">What MOSS60 is / is not</p>
+          <p>{moss60MessagingContent.securityDisclaimer}</p>
+          <ul className="list-disc pl-5 space-y-1 text-zinc-400">
+            {moss60MessagingContent.nonGoals.map((nonGoal) => (
+              <li key={nonGoal}>{nonGoal}</li>
+            ))}
+          </ul>
         </div>
 
         {/* Main Content */}
@@ -29,7 +40,7 @@ export default function QRMessagingRoute() {
 
         {/* Footer */}
         <div className="mt-12 text-center text-zinc-600 text-xs space-y-1">
-          <p>MOSS60 Ultimate — Quantum-Resistant Cryptographic Platform</p>
+          <p>{moss60MessagingContent.tagline}</p>
           <p>Base-60 Encoding • XOR Stream Cipher • Lucas Sequence Evolution</p>
         </div>
       </div>

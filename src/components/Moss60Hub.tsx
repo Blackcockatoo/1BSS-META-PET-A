@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Moss60Hub — MOSS60 Quantum-Resistant Cryptographic Platform
+ * Moss60Hub — MOSS60 experimental cryptographic/visual protocol
  * Tabs: Glyph | QR Cipher | Serpent Protocol | Reality
  *
  * Glyph canvas ported from moss60-ultimate.html
@@ -24,6 +24,7 @@ import {
 } from '@/lib/qr-messaging/crypto';
 import { Download, RefreshCw, Lock, Unlock, Key, Orbit, Layers } from 'lucide-react';
 import { CrystallineNetwork } from './CrystallineNetwork';
+import { moss60MessagingContent } from '@/lib/qr-messaging/content';
 
 // ─── Glyph Canvas ─────────────────────────────────────────────────────────────
 
@@ -432,7 +433,17 @@ export function Moss60Hub() {
           <Layers className="w-5 h-5 text-cyan-300" />
           MOSS60
         </h2>
-        <p className="text-xs text-zinc-500 mt-0.5">Quantum-resistant cryptographic platform</p>
+        <p className="text-xs text-zinc-500 mt-0.5">{moss60MessagingContent.tagline}</p>
+      </div>
+
+      <div className="rounded-lg border border-cyan-500/20 bg-slate-900/60 p-3 text-xs text-zinc-300 space-y-2">
+        <p className="font-semibold text-cyan-300">What MOSS60 is / is not</p>
+        <p>{moss60MessagingContent.securityDisclaimer}</p>
+        <ul className="list-disc pl-5 space-y-1 text-zinc-400">
+          {moss60MessagingContent.nonGoals.map((nonGoal) => (
+            <li key={nonGoal}>{nonGoal}</li>
+          ))}
+        </ul>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
