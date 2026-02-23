@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
 interface VimanaTetrisProps {
   petName?: string;
@@ -620,7 +620,7 @@ export function VimanaTetris({
   }, [active, board]);
 
   const gridCells = useMemo(() => {
-    const cells: JSX.Element[] = [];
+    const cells: ReactElement[] = [];
     for (let y = 0; y < ROWS; y += 1) {
       for (let x = 0; x < COLS; x += 1) {
         const base = board[y][x];
@@ -670,7 +670,7 @@ export function VimanaTetris({
       ...nextPiece,
       pos: { x: 2, y: 1 },
     });
-    const blocks: JSX.Element[] = [];
+    const blocks: ReactElement[] = [];
     for (let y = 0; y < previewSize; y += 1) {
       for (let x = 0; x < previewSize; x += 1) {
         const filled = previewCells.some(cell => cell.x === x && cell.y === y);
