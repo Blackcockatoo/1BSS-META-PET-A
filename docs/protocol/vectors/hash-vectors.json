@@ -1,0 +1,25 @@
+{
+  "algorithm": "moss60Hash",
+  "vectors": [
+    {
+      "input": "hello",
+      "hash": "6f556729",
+      "extended8": "77beebe577c0dbe577c2cbe577c4bbe577c6abe577c89be577ca8be577cc7be5"
+    },
+    {
+      "input": "MOSS60",
+      "hash": "16a2fa8f",
+      "extended8": "45ce9a3345ccaa3345d27a3345d08a3345c6da3345c4ea3345caba3345c8ca33"
+    },
+    {
+      "input": "qr-messaging:v1",
+      "hash": "475bf636",
+      "extended8": "2cac58ab2cae48ab2ca878ab2caa68ab2ca498ab2ca688ab2ca0b8ab2ca2a8ab"
+    },
+    {
+      "input": "metapet",
+      "hash": "4b4a63fa",
+      "extended8": "2158018a2159f18a2154218a2156118a215fc18a2161b18a215be18a215dd18a"
+    }
+  ]
+}

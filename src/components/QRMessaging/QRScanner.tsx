@@ -5,8 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Camera, CameraOff, RotateCcw, Check, Copy, Keyboard, X } from 'lucide-react';
 import {
   useQRMessagingStore,
-  decodeMoss60,
-  isMoss60Format,
+  decodeProtocolPayload,
   type EncodingFormat,
 } from '@/lib/qr-messaging';
 import { createScanSession, type PreprocessingStrategy } from '@/lib/qr';
@@ -80,18 +79,22 @@ export function QRScanner({ compact = false, onScan }: QRScannerProps) {
       let decoded = scanResult.data;
       let format: EncodingFormat = 'text';
 
-      // Handle MOSS60 format
-      if (isMoss60Format(scanResult.data)) {
-        try {
-          decoded = decodeMoss60(scanResult.data);
-          format = 'base60';
-        } catch (e) {
-          decoded = `Error decoding: ${e instanceof Error ? e.message : 'Unknown error'}`;
-        }
-      } else if (scanResult.data.startsWith('{') || scanResult.data.startsWith('[')) {
-        format = 'json';
-      } else if (/^[0-9a-fA-F]+$/.test(scanResult.data)) {
-        format = 'hex';
+      try {
+        const parsed = decodeProtocolPayload(scanResult.data);
+        decoded = parsed.decoded;
+        format = parsed.format;
+      } catch (e) {
+        const message = `Error decoding: ${e instanceof Error ? e.message : 'Unknown error'}`;
+        setError(message);
+        addScannedQR({
+          raw: scanResult.data,
+          decoded: message,
+          format,
+          timestamp: Date.now(),
+          success: false,
+          error: message,
+        });
+        return;
       }
 
       const result = {
@@ -187,19 +190,13 @@ export function QRScanner({ compact = false, onScan }: QRScannerProps) {
     let decoded = rawData;
     let format: EncodingFormat = 'text';
 
-    // Handle MOSS60 format
-    if (isMoss60Format(rawData)) {
-      try {
-        decoded = decodeMoss60(rawData);
-        format = 'base60';
-      } catch (e) {
-        setError(`Error decoding: ${e instanceof Error ? e.message : 'Unknown error'}`);
-        return;
-      }
-    } else if (rawData.startsWith('{') || rawData.startsWith('[')) {
-      format = 'json';
-    } else if (/^[0-9a-fA-F]+$/.test(rawData)) {
-      format = 'hex';
+    try {
+      const parsed = decodeProtocolPayload(rawData);
+      decoded = parsed.decoded;
+      format = parsed.format;
+    } catch (e) {
+      setError(`Error decoding: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      return;
     }
 
     const scanResult = {

@@ -18,7 +18,12 @@ export type {
   QRMessagingState,
   QRMessagingActions,
   QRMessagingStore,
+  Moss60Capability,
+  Moss60ProtocolEnvelope,
 } from './types';
+
+// Protocol constants
+export { MOSS60_PROTOCOL_VERSION } from './types';
 
 // Encoding utilities
 export {
@@ -63,3 +68,14 @@ export {
   getActiveConversation,
   isConnected,
 } from './store';
+
+
+// Protocol envelope helpers
+export {
+  REQUIRED_PROTOCOL_CAPABILITIES,
+  createProtocolEnvelope,
+  serializeProtocolEnvelope,
+  parseProtocolEnvelope,
+  validateProtocolEnvelope,
+  decodeProtocolPayload,
+} from './protocol';

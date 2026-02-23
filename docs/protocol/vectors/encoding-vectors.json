@@ -1,0 +1,29 @@
+{
+  "alphabet": "0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz",
+  "vectors": [
+    {
+      "input": "hello world",
+      "base60": "G6JrTUbxRBZ1qUc",
+      "moss60": "MOSS60:G6JrTUbxRBZ1qUc",
+      "roundTrip": "hello world"
+    },
+    {
+      "input": "MetaPet-QR-60",
+      "base60": "3dMcLgDGMLC8e0kz68",
+      "moss60": "MOSS60:3dMcLgDGMLC8e0kz68",
+      "roundTrip": "MetaPet-QR-60"
+    },
+    {
+      "input": "caps-v1",
+      "base60": "2pYhuqe4w5",
+      "moss60": "MOSS60:2pYhuqe4w5",
+      "roundTrip": "caps-v1"
+    },
+    {
+      "input": "",
+      "base60": "0",
+      "moss60": "MOSS60:0",
+      "roundTrip": ""
+    }
+  ]
+}
