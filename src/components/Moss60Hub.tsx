@@ -24,6 +24,12 @@ import {
 } from '@/lib/qr-messaging/crypto';
 import { Download, RefreshCw, Lock, Unlock, Key, Orbit, Layers } from 'lucide-react';
 import { CrystallineNetwork } from './CrystallineNetwork';
+import { trackEvent } from '@/lib/analytics';
+import {
+  createMoss60VerifiablePayload,
+  createShareUrl,
+  type Moss60ShareMetadata,
+} from '@/lib/moss60/share';
 
 // ─── Glyph Canvas ─────────────────────────────────────────────────────────────
 
@@ -36,6 +42,19 @@ const COLOR_SCHEMES: Record<string, [string, string][]> = {
   Ocean:         [['#0984e3','#00cec9'], ['#74b9ff','#0abde3'], ['#81ecec','#636e72']],
 };
 
+const GLYPH_VARIANTS = ['Pulse', 'Prism', 'Cascade'] as const;
+
+const STUDIO_PRESETS: Array<{
+  name: string;
+  scheme: string;
+  variant: (typeof GLYPH_VARIANTS)[number];
+  seed: string;
+}> = [
+  { name: 'Aurora School', scheme: 'Spectral', variant: 'Pulse', seed: 'aurora-classroom' },
+  { name: 'Cyber Conservatory', scheme: 'Cyberpunk', variant: 'Prism', seed: 'cyber-conservatory' },
+  { name: 'Ocean Memory', scheme: 'Ocean', variant: 'Cascade', seed: 'ocean-memory-thread' },
+];
+
 function lerpColor(a: string, b: string, t: number): string {
   const ah = parseInt(a.slice(1), 16);
   const bh = parseInt(b.slice(1), 16);
@@ -47,7 +66,19 @@ function lerpColor(a: string, b: string, t: number): string {
   return `rgb(${r},${g},${bl})`;
 }
 
-function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string; animating: boolean }) {
+function GlyphCanvas({
+  seed,
+  scheme,
+  animating,
+  variant,
+  onCanvasReady,
+}: {
+  seed: string;
+  scheme: string;
+  animating: boolean;
+  variant: (typeof GLYPH_VARIANTS)[number];
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef    = useRef<number>(0);
   const timeRef   = useRef<number>(0);
@@ -62,6 +93,11 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
     const H = canvas.height;
     const cx = W / 2;
     const cy = H / 2;
+    const variantConfig = {
+      Pulse: { speed: 0.0006, wobble: 0.12, alpha: 0.55 },
+      Prism: { speed: 0.001, wobble: 0.18, alpha: 0.72 },
+      Cascade: { speed: 0.00045, wobble: 0.08, alpha: 0.45 },
+    }[variant];
     const baseR = Math.min(W, H) * 0.38;
 
     // Trail effect
@@ -75,8 +111,8 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
     // Generate 60 points along a PHI spiral
     const points: { x: number; y: number }[] = [];
     for (let i = 0; i < 60; i++) {
-      const angle = (i / 60) * 2 * Math.PI * PHI + time * 0.0006;
-      const wobble = 1 + 0.12 * Math.sin(i * PHI * 0.5 + time * 0.001);
+      const angle = (i / 60) * 2 * Math.PI * PHI + time * variantConfig.speed;
+      const wobble = 1 + variantConfig.wobble * Math.sin(i * PHI * 0.5 + time * 0.001);
       const r = baseR * wobble;
       points.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
     }
@@ -89,7 +125,7 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
         const t = (i / 60 + hashVal) % 1;
         const pairIdx = Math.floor(t * pairs.length) % pairs.length;
         const [ca, cb] = pairs[pairIdx];
-        const alpha = 0.15 + 0.55 * Math.abs(Math.sin(time * 0.0008 + i * 0.3));
+        const alpha = 0.15 + variantConfig.alpha * Math.abs(Math.sin(time * 0.0008 + i * 0.3));
         ctx.beginPath();
         ctx.moveTo(points[i].x, points[i].y);
         ctx.lineTo(points[j].x, points[j].y);
@@ -114,10 +150,11 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
       ctx.fill();
       ctx.globalAlpha = 1;
     }
-  }, [seed, scheme]);
+  }, [seed, scheme, variant]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    onCanvasReady?.(canvas ?? null);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -135,16 +172,7 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
     } else {
       draw(timeRef.current);
     }
-  }, [animating, draw]);
-
-  function downloadPNG() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const a = document.createElement('a');
-    a.download = `moss60-glyph-${Date.now()}.png`;
-    a.href = canvas.toDataURL('image/png');
-    a.click();
-  }
+  }, [animating, draw, onCanvasReady]);
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -154,12 +182,6 @@ function GlyphCanvas({ seed, scheme, animating }: { seed: string; scheme: string
         height={320}
         className="rounded-xl border border-slate-700 bg-black"
       />
-      <button
-        onClick={downloadPNG}
-        className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
-      >
-        <Download className="w-3 h-3" /> Save PNG
-      </button>
     </div>
   );
 }
@@ -422,8 +444,73 @@ export function Moss60Hub() {
   const [glyphSeed, setGlyphSeed]   = useState('');
   const [scheme, setScheme]         = useState('Spectral');
   const [animating, setAnimating]   = useState(true);
+  const [variant, setVariant] = useState<(typeof GLYPH_VARIANTS)[number]>('Pulse');
   const [projection, setProjection] = useState<Projection>('sphere');
   const [realitySeed, setRealitySeed] = useState('');
+  const [canvasEl, setCanvasEl] = useState<HTMLCanvasElement | null>(null);
+  const [shareUrl, setShareUrl] = useState('');
+
+  const baseMetadata = useCallback((): Moss60ShareMetadata => ({
+    id: moss60Hash(`${glyphSeed}:${scheme}:${variant}:${Date.now()}`).slice(0, 16),
+    seed: glyphSeed,
+    scheme,
+    variant,
+    projection,
+    timestamp: Date.now(),
+    source: 'moss60-studio',
+  }), [glyphSeed, projection, scheme, variant]);
+
+  const exportJSON = useCallback(() => {
+    const payload = createMoss60VerifiablePayload(baseMetadata());
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = `moss60-bundle-${payload.metadata.id}.json`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+    trackEvent('moss60_export', { format: 'json', variant, scheme });
+    setShareUrl(createShareUrl(payload));
+  }, [baseMetadata, scheme, variant]);
+
+  const exportPNG = useCallback(() => {
+    if (!canvasEl) return;
+    const a = document.createElement('a');
+    a.download = `moss60-glyph-${Date.now()}.png`;
+    a.href = canvasEl.toDataURL('image/png');
+    a.click();
+    trackEvent('moss60_export', { format: 'png', variant, scheme });
+  }, [canvasEl, scheme, variant]);
+
+  const exportSVG = useCallback(() => {
+    const payload = createMoss60VerifiablePayload(baseMetadata());
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320"><rect width="320" height="320" fill="#020617"/><text x="22" y="48" fill="#e2e8f0" font-family="sans-serif" font-size="15">MOSS60 ${payload.metadata.id}</text><text x="22" y="76" fill="#94a3b8" font-family="sans-serif" font-size="12">Scheme ${scheme} · Variant ${variant}</text><text x="22" y="104" fill="#67e8f9" font-family="monospace" font-size="11">${moss60Hash(payload.metadata.seed || 'seedless').slice(0, 28)}</text></svg>`;
+    const blob = new Blob([svg], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = `moss60-bundle-${payload.metadata.id}.svg`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+    trackEvent('moss60_export', { format: 'svg', variant, scheme });
+    setShareUrl(createShareUrl(payload));
+  }, [baseMetadata, scheme, variant]);
+
+  const kpi = useCallback(() => {
+    if (typeof window === 'undefined') return { imports: 0, reimports: 0, rate: 0 };
+    try {
+      const raw = window.localStorage.getItem('metapet-analytics');
+      const events = raw ? (JSON.parse(raw) as Array<{ name: string }>) : [];
+      const imports = events.filter(event => event.name === 'moss60_import').length;
+      const reimports = events.filter(event => event.name === 'moss60_reimport').length;
+      const rate = imports === 0 ? 0 : Math.round((reimports / imports) * 100);
+      return { imports, reimports, rate };
+    } catch {
+      return { imports: 0, reimports: 0, rate: 0 };
+    }
+  }, []);
+
+  const growth = kpi();
 
   return (
     <div className="space-y-4">
@@ -471,8 +558,51 @@ export function Moss60Hub() {
               <RefreshCw className={`w-3 h-3 ${animating ? 'animate-spin' : ''}`} />
               {animating ? 'Pause' : 'Animate'}
             </button>
+            <select
+              value={variant}
+              onChange={event => setVariant(event.target.value as (typeof GLYPH_VARIANTS)[number])}
+              className="rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              {GLYPH_VARIANTS.map(item => (
+                <option key={item} value={item}>{item} variant</option>
+              ))}
+            </select>
           </div>
-          <GlyphCanvas seed={glyphSeed} scheme={scheme} animating={animating} />
+          <GlyphCanvas seed={glyphSeed} scheme={scheme} animating={animating} variant={variant} onCanvasReady={setCanvasEl} />
+
+          <div className="rounded-xl border border-slate-700 bg-slate-900/40 p-3 space-y-3">
+            <p className="text-sm font-semibold text-zinc-200">MOSS60 Studio</p>
+            <p className="text-xs text-zinc-500">Theme presets · animated glyph variants · export bundles (PNG/SVG/JSON).</p>
+
+            <div className="flex flex-wrap gap-2">
+              {STUDIO_PRESETS.map(preset => (
+                <Button
+                  key={preset.name}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setScheme(preset.scheme);
+                    setVariant(preset.variant);
+                    setGlyphSeed(preset.seed);
+                  }}
+                >
+                  {preset.name}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={exportPNG}><Download className="w-3 h-3 mr-1" />Export PNG</Button>
+              <Button size="sm" onClick={exportSVG}><Download className="w-3 h-3 mr-1" />Export SVG</Button>
+              <Button size="sm" onClick={exportJSON}><Download className="w-3 h-3 mr-1" />Export JSON</Button>
+            </div>
+
+            <div className="rounded-lg border border-emerald-800/60 bg-emerald-950/30 p-2">
+              <p className="text-xs text-emerald-300">Primary growth KPI: verified re-import rate</p>
+              <p className="text-sm text-zinc-100 mt-1">{growth.rate}% ({growth.reimports} verified re-imports / {growth.imports} imports)</p>
+              {shareUrl && <p className="text-[11px] text-zinc-400 mt-1">Share route: {shareUrl}</p>}
+            </div>
+          </div>
         </TabsContent>
 
         {/* ── QR Cipher ── */}
