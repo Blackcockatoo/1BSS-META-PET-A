@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { QrCode, Download, Copy, Check } from 'lucide-react';
 import {
   useQRMessagingStore,
-  encodeMoss60,
+  serializeProtocolEnvelope,
   hashData,
   type EncodingFormat,
   type ErrorCorrectionLevel,
@@ -44,26 +44,6 @@ export function QRGenerator({ compact = false, onGenerate }: QRGeneratorProps) {
     setErrorCorrection(defaultErrorCorrection);
   }, [defaultErrorCorrection]);
 
-  const encodeData = useCallback((data: string, fmt: EncodingFormat): string => {
-    switch (fmt) {
-      case 'base60':
-        return encodeMoss60(data);
-      case 'hex':
-        return Array.from(new TextEncoder().encode(data))
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-      case 'json':
-        try {
-          return JSON.stringify(JSON.parse(data));
-        } catch {
-          return JSON.stringify({ data });
-        }
-      case 'text':
-      default:
-        return data;
-    }
-  }, []);
-
   const generateQR = useCallback(async () => {
     if (!inputData.trim()) {
       setError('Enter data to encode');
@@ -73,7 +53,7 @@ export function QRGenerator({ compact = false, onGenerate }: QRGeneratorProps) {
     setError(null);
 
     try {
-      const encodedData = encodeData(inputData, format);
+      const encodedData = serializeProtocolEnvelope(inputData, format);
       const canvas = canvasRef.current;
 
       if (!canvas) return;
@@ -114,7 +94,6 @@ export function QRGenerator({ compact = false, onGenerate }: QRGeneratorProps) {
     format,
     errorCorrection,
     compact,
-    encodeData,
     addGeneratedQR,
     setDefaultFormat,
     setDefaultErrorCorrection,

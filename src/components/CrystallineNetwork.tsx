@@ -17,17 +17,48 @@
  * Crystallization = simulated annealing phase transition:
  *   disorder (high temp) → crystalline order (temp → 0)
  *   Post-crystallization: particles route along Floyd-Warshall shortest paths.
+ *
+ * DNA integration: when a 60-digit DNA sequence is provided, the network
+ *   topology and node properties are seeded deterministically from the genome.
+ *   Each digit controls local rewiring probability and bridge activation,
+ *   making every pet's network structurally unique while preserving the
+ *   small-world property.
  */
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Button } from './ui/button';
-import { Zap, RotateCcw, Network, Crosshair } from 'lucide-react';
+import { Zap, RotateCcw, Network, Crosshair, Dna } from 'lucide-react';
 
 // ── Mathematical constants ────────────────────────────────────────────────────
 const N   = 60;
 const PHI = (1 + Math.sqrt(5)) / 2;
 // Primes used as bridge distances in the 60-circle element graph
 const PRIME_BRIDGES = [7, 11, 13, 17, 19, 23] as const;
+
+/**
+ * Seeded pseudo-random number generator (xorshift32).
+ * When DNA is provided, this replaces Math.random() so the topology
+ * is deterministic for a given genome.
+ */
+function createSeededRng(seed: number): () => number {
+  let s = seed | 0 || 1;
+  return () => {
+    s ^= s << 13;
+    s ^= s >> 17;
+    s ^= s << 5;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+/** Convert a DNA digit string (e.g. "113031...") into a numeric seed. */
+function dnaSeed(dna: string): number {
+  let h = 0x811c9dc5; // FNV offset basis
+  for (let i = 0; i < dna.length; i++) {
+    h ^= dna.charCodeAt(i);
+    h = Math.imul(h, 0x01000193); // FNV prime
+  }
+  return h >>> 0;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface SimNode  { x: number; y: number; vx: number; vy: number }
@@ -56,7 +87,11 @@ interface Sim {
 
 // ── Network construction ──────────────────────────────────────────────────────
 
-function buildNetwork(): NetData {
+function buildNetwork(dna?: string): NetData {
+  // Use seeded RNG when DNA is provided, otherwise fall back to Math.random
+  const rng = dna ? createSeededRng(dnaSeed(dna)) : Math.random;
+  const digits = dna ? dna.split('').map(Number) : null;
+
   const adjSet: Set<number>[] = Array.from({ length: N }, () => new Set<number>());
 
   // 1. Ring lattice: each node connects to ±1, ±2, ±3
@@ -66,27 +101,32 @@ function buildNetwork(): NetData {
       adjSet[i].add(j); adjSet[j].add(i);
     }
 
-  // 2. Watts-Strogatz rewiring β=0.28
+  // 2. Watts-Strogatz rewiring — β modulated by DNA digit when available
+  //    Higher digit → more rewiring → more unique topology per genome
   for (let i = 0; i < N; i++)
-    for (let d = 1; d <= 3; d++)
-      if (Math.random() < 0.28) {
+    for (let d = 1; d <= 3; d++) {
+      const beta = digits ? 0.15 + (digits[i % digits.length] / 9) * 0.25 : 0.28;
+      if (rng() < beta) {
         const old = (i + d) % N;
-        let neu = Math.floor(Math.random() * N), t = 0;
+        let neu = Math.floor(rng() * N), t = 0;
         while ((neu === i || adjSet[i].has(neu)) && t++ < 40)
-          neu = Math.floor(Math.random() * N);
+          neu = Math.floor(rng() * N);
         if (t < 40) {
           adjSet[i].delete(old); adjSet[old].delete(i);
           adjSet[i].add(neu);    adjSet[neu].add(i);
         }
       }
+    }
 
-  // 3. Prime-bridge shortcuts (mirrors 60-circle element bridges)
+  // 3. Prime-bridge shortcuts — activation probability shaped by DNA
   for (let i = 0; i < N; i++)
-    for (const p of PRIME_BRIDGES)
-      if (Math.random() < 0.18) {         // sparse: ~1 extra per prime per node
+    for (const p of PRIME_BRIDGES) {
+      const prob = digits ? 0.10 + (digits[(i + p) % digits.length] / 9) * 0.16 : 0.18;
+      if (rng() < prob) {
         const j = (i + p) % N;
         adjSet[i].add(j); adjSet[j].add(i);
       }
+    }
 
   const adj = adjSet.map(s => [...s]);
 
@@ -239,11 +279,11 @@ function project4D(
   // XW plane (τ₁ = φ-scaled rate for irrational winding)
   const a = t * 0.00038 * PHI;
   let x1 = x * Math.cos(a) - w * Math.sin(a);
-  let w1 = x * Math.sin(a) + w * Math.cos(a);
+  const w1 = x * Math.sin(a) + w * Math.cos(a);
   // YZ plane
   const b = t * 0.00027;
   let y1 = y * Math.cos(b) - z * Math.sin(b);
-  let z1 = y * Math.sin(b) + z * Math.cos(b);
+  const z1 = y * Math.sin(b) + z * Math.cos(b);
   // XY plane
   const c = t * 0.00052;
   const x2 = x1 * Math.cos(c) - y1 * Math.sin(c);
@@ -387,7 +427,14 @@ function draw(
 // ── Component ─────────────────────────────────────────────────────────────────
 type Mode = 'flow' | '4d' | 'paths';
 
-export function CrystallineNetwork() {
+interface CrystallineNetworkProps {
+  /** Optional 60-digit DNA string. When provided, the network topology
+   *  is deterministically seeded from the genome — every pet gets a
+   *  structurally unique crystalline network. */
+  dna?: string;
+}
+
+export function CrystallineNetwork({ dna }: CrystallineNetworkProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef    = useRef<number>(0);
   const netRef    = useRef<NetData | null>(null);
@@ -399,21 +446,24 @@ export function CrystallineNetwork() {
   const [crystallizing, setCrystallizing] = useState(false);
   const [stats, setStats]             = useState({ avgPath: 0, diameter: 0, edgeCount: 0, clustering: 0 });
   const [pathInfo, setPathInfo]       = useState<string>('');
+  const [dnaConnected, setDnaConnected] = useState(false);
 
-  // Build network on mount
+  // Build network on mount (or when DNA changes)
   useEffect(() => {
-    const net = buildNetwork();
+    const net = buildNetwork(dna);
     netRef.current  = net;
     setStats(net.stats);
+    setDnaConnected(!!dna);
 
-    // Golden-spiral initial positions
+    // Golden-spiral initial positions — seeded by DNA when available
+    const posRng = dna ? createSeededRng(dnaSeed(dna + ':pos')) : Math.random;
     simRef.current = {
       nodes: Array.from({ length: N }, (_, i) => {
         const angle = i * 2 * Math.PI * PHI;
         const r     = Math.sqrt(i / N) * 125;
         return {
-          x:  r * Math.cos(angle) + (Math.random() - 0.5) * 18,
-          y:  r * Math.sin(angle) + (Math.random() - 0.5) * 18,
+          x:  r * Math.cos(angle) + (posRng() - 0.5) * 18,
+          y:  r * Math.sin(angle) + (posRng() - 0.5) * 18,
           vx: 0, vy: 0,
         };
       }),
@@ -424,7 +474,7 @@ export function CrystallineNetwork() {
       selA:        null, selB: null, pathHL: null,
       spawnT:      0,
     };
-  }, []);
+  }, [dna]);
 
   // RAF simulation + render loop
   useEffect(() => {
@@ -574,6 +624,11 @@ export function CrystallineNetwork() {
           <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
             <Network className="w-4 h-4 text-cyan-300" />
             Crystalline Network
+            {dnaConnected && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/30">
+                <Dna className="w-3 h-3" /> DNA-seeded
+              </span>
+            )}
           </h3>
           <p className="text-[10px] text-zinc-500 mt-0.5 font-mono">
             N={N} · edges={stats.edgeCount} · avg-path={stats.avgPath} · diameter={stats.diameter} · C={stats.clustering}
@@ -649,8 +704,9 @@ export function CrystallineNetwork() {
 
       {/* Info */}
       <p className="text-[10px] text-zinc-600 text-center leading-relaxed">
-        60-circle topology · Watts-Strogatz β=0.28 · prime bridges {PRIME_BRIDGES.join(',')} mod 60<br />
+        60-circle topology · Watts-Strogatz β{dnaConnected ? '=DNA-modulated' : '=0.28'} · prime bridges {PRIME_BRIDGES.join(',')} mod 60<br />
         4D: Lissajous knot — frequency ratio φ (irrational → fills 2-torus uniformly)
+        {dnaConnected && <><br />Topology seeded from genome — each pet crystallises differently</>}
       </p>
     </div>
   );

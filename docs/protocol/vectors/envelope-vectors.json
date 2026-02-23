@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "requiredCapabilities": [
+    "envelope-v1",
+    "qr-scan-v1",
+    "qr-generate-v1"
+  ],
+  "vectors": [
+    {
+      "name": "text",
+      "rawEnvelope": "{\"protocol\":\"moss60\",\"version\":\"1.0\",\"capabilities\":[\"envelope-v1\",\"qr-scan-v1\",\"qr-generate-v1\",\"encoding-text\"],\"format\":\"text\",\"payload\":\"hello scanner\",\"hash\":\"419954c0\",\"createdAt\":1730000000000}"
+    },
+    {
+      "name": "base60",
+      "rawEnvelope": "{\"protocol\":\"moss60\",\"version\":\"1.0\",\"capabilities\":[\"envelope-v1\",\"qr-scan-v1\",\"qr-generate-v1\",\"encoding-base60\"],\"format\":\"base60\",\"payload\":\"MOSS60:2pYhuqe4w5\",\"hash\":\"081b438a\",\"createdAt\":1730000001000}"
+    },
+    {
+      "name": "json",
+      "rawEnvelope": "{\"protocol\":\"moss60\",\"version\":\"1.0\",\"capabilities\":[\"envelope-v1\",\"qr-scan-v1\",\"qr-generate-v1\",\"encoding-json\"],\"format\":\"json\",\"payload\":\"{\\\"kind\\\":\\\"handshake\\\",\\\"step\\\":1}\",\"hash\":\"19fa0f97\",\"createdAt\":1730000002000}"
+    }
+  ]
+}

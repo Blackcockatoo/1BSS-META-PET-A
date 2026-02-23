@@ -5,7 +5,11 @@ export type AnalyticsEventName =
   | 'session_end'
   | 'ritual_complete'
   | 'mini_game_completed'
-  | 'pet_saved';
+  | 'pet_saved'
+  | 'moss60_export'
+  | 'moss60_verify'
+  | 'moss60_import'
+  | 'moss60_reimport';
 
 export type AnalyticsEvent = {
   name: AnalyticsEventName;
