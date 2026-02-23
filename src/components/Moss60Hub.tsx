@@ -106,7 +106,7 @@ function GlyphCanvas({
     ctx.fillRect(0, 0, W, H);
 
     const pairs = COLOR_SCHEMES[scheme] ?? COLOR_SCHEMES['Spectral'];
-    const hash = seedHashOverride ?? (seed ? moss60Hash(seed) : 'deadbeef');
+    const hash = seed ? moss60Hash(seed) : 'deadbeef';
     const hashVal = parseInt(hash.slice(0, 4), 16) / 0xffff;
 
     // Generate 60 points along a PHI spiral
@@ -676,46 +676,8 @@ export function Moss60Hub() {
 
   const growth = kpi();
 
-  useEffect(() => {
-    const currentHash = moss60Hash(glyphSeed || '');
-    setLineage(previous => {
-      const latest = previous[previous.length - 1];
-      if (latest?.toSeedHash === currentHash) return previous;
 
-      const fromSeedHash = latest?.toSeedHash ?? currentHash;
-      if (fromSeedHash === currentHash && previous.length > 0) return previous;
 
-      const next = [...previous, {
-        fromSeedHash,
-        toSeedHash: currentHash,
-        timestamp: new Date().toISOString(),
-      }];
-
-      return next.slice(-8);
-    });
-  }, [glyphSeed]);
-
-  function verifyGlyphMetadata() {
-    try {
-      const parsed = parseGlyphMetadata(verifyJson);
-      const canonical = serializeGlyphMetadata(parsed);
-      const reparsed = parseGlyphMetadata(canonical);
-      const hashA = computeGlyphDeterministicHash(parsed);
-      const hashB = computeGlyphDeterministicHash(reparsed);
-
-      if (hashA !== hashB) {
-        setVerifyResult({ valid: false, message: 'Deterministic hash mismatch after re-serialization.' });
-        setVerifiedMetadata(null);
-        return;
-      }
-
-      setVerifiedMetadata(parsed);
-      setVerifyResult({ valid: true, hash: hashA, message: 'Metadata valid. Deterministic render hash is stable.' });
-    } catch (error) {
-      setVerifiedMetadata(null);
-      setVerifyResult({ valid: false, message: error instanceof Error ? error.message : 'Unable to parse metadata JSON.' });
-    }
-  }
 
   return (
     <div className="space-y-4">
