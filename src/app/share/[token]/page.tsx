@@ -6,6 +6,12 @@ interface SharePageProps {
   params: Promise<{ token: string }>;
 }
 
+export const dynamicParams = false;
+
+export async function generateStaticParams(): Promise<Array<{ token: string }>> {
+  return [{ token: "demo" }];
+}
+
 export async function generateMetadata({ params }: SharePageProps): Promise<Metadata> {
   const { token } = await params;
   const payload = decodeMoss60Payload(token);
@@ -20,13 +26,13 @@ export async function generateMetadata({ params }: SharePageProps): Promise<Meta
     openGraph: {
       title,
       description,
-      images: [`/share/${token}/opengraph-image`],
+      images: ['/icon.svg'],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
-      images: [`/share/${token}/opengraph-image`],
+      images: ['/icon.svg'],
     },
   };
 }
