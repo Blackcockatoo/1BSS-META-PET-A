@@ -72,12 +72,14 @@ function GlyphCanvas({
   scheme,
   animating,
   variant,
+  seedHashOverride,
   onCanvasReady,
 }: {
   seed: string;
   scheme: string;
   animating: boolean;
   variant: (typeof GLYPH_VARIANTS)[number];
+  seedHashOverride?: string;
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -106,7 +108,7 @@ function GlyphCanvas({
     ctx.fillRect(0, 0, W, H);
 
     const pairs = COLOR_SCHEMES[scheme] ?? COLOR_SCHEMES['Spectral'];
-    const hash = seed ? moss60Hash(seed) : 'deadbeef';
+    const hash = seedHashOverride ?? (seed ? moss60Hash(seed) : 'deadbeef');
     const hashVal = parseInt(hash.slice(0, 4), 16) / 0xffff;
 
     // Generate 60 points along a PHI spiral
@@ -151,7 +153,7 @@ function GlyphCanvas({
       ctx.fill();
       ctx.globalAlpha = 1;
     }
-  }, [seed, scheme, variant]);
+  }, [seed, scheme, seedHashOverride, variant]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
