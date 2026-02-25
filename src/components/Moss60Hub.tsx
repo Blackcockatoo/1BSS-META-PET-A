@@ -691,6 +691,42 @@ export function Moss60Hub() {
         <p className="text-xs text-zinc-500 mt-0.5">Layered cryptographic platform — depth through algebraic complexity</p>
       </div>
 
+      {/* Plain-language intro — what is MOSS60? */}
+      <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-4 space-y-2">
+        <p className="text-sm font-semibold text-cyan-200">What is MOSS60?</p>
+        <p className="text-xs text-zinc-300 leading-relaxed">
+          MOSS60 is a visual + cryptographic system built on the number 60. Why 60? It&apos;s the smallest number
+          divisible by 1 through 6 and contains more prime-indexed positions than any smaller base — giving it a
+          natural richness for mixing and encoding information.
+        </p>
+        <p className="text-xs text-zinc-400 leading-relaxed">
+          Think of it like a secret language made of geometry. Each tab below shows a different face of the same
+          underlying idea — from animated glyphs to encrypted messages to 3D projections. You don&apos;t need to
+          understand the math to explore it; start with <span className="text-cyan-300 font-medium">Glyph</span> and
+          follow your curiosity.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+          {[
+            { tab: 'Glyph',    desc: 'Animated visual fingerprint of any word or phrase' },
+            { tab: 'QR',       desc: 'Encode messages into scannable QR ciphers' },
+            { tab: 'Serpent',  desc: 'Two-way encrypted chat via key exchange' },
+            { tab: 'Reality',  desc: '3D projections of the 60-point structure' },
+            { tab: 'Network',  desc: 'See how nodes connect in the MOSS60 graph' },
+            { tab: 'Security', desc: 'Learn how each layer of protection works' },
+          ].map(({ tab, desc }) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab.toLowerCase())}
+              className="text-left rounded-lg border border-slate-700/60 bg-slate-900/40 hover:border-cyan-500/40 hover:bg-cyan-950/20 p-2 transition-colors"
+            >
+              <p className="text-[11px] font-semibold text-cyan-300">{tab}</p>
+              <p className="text-[10px] text-zinc-500 mt-0.5 leading-tight">{desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-6 h-auto">
           <TabsTrigger value="glyph"    className="text-xs py-2">Glyph</TabsTrigger>
@@ -703,11 +739,19 @@ export function Moss60Hub() {
 
         {/* ── Glyph ── */}
         <TabsContent value="glyph" className="mt-4 space-y-3">
+          <div className="rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
+            <p className="text-xs font-semibold text-zinc-200 mb-1">Visual DNA fingerprint</p>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              Type any word, phrase, or name below and watch it become a unique animated glyph.
+              Two different inputs will always produce two completely different glyphs — this is the
+              &ldquo;avalanche effect&rdquo; at work. Think of it as your personal sigil generated from MOSS60 mathematics.
+            </p>
+          </div>
           <div className="flex gap-2">
             <input
               value={glyphSeed}
               onChange={e => setGlyphSeed(e.target.value)}
-              placeholder="Seed phrase / message..."
+              placeholder="Type anything — your name, a word, a phrase…"
               className="flex-1 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
@@ -776,17 +820,48 @@ export function Moss60Hub() {
         </TabsContent>
 
         {/* ── QR Cipher ── */}
-        <TabsContent value="qr" className="mt-4">
+        <TabsContent value="qr" className="mt-4 space-y-3">
+          <div className="rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
+            <p className="text-xs font-semibold text-zinc-200 mb-1">Hide messages inside QR codes</p>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              Type a message, generate a QR code, and that QR carries a MOSS60-encrypted version of your
+              text. Only someone with the matching key (or the same app) can read what&apos;s inside —
+              anyone else just sees a normal-looking QR code.
+              Great for sharing pet data, notes, or just exploring how QR + encryption combine.
+            </p>
+          </div>
           <QRGenerator />
         </TabsContent>
 
         {/* ── Serpent ── */}
-        <TabsContent value="serpent" className="mt-4">
+        <TabsContent value="serpent" className="mt-4 space-y-3">
+          <div className="rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
+            <p className="text-xs font-semibold text-zinc-200 mb-1">Encrypted two-way messaging</p>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              Serpent lets two people create a private shared secret without ever sending their private key.
+              Here&apos;s the idea: you both generate your own keypair from a secret phrase, share only your
+              <span className="text-cyan-300"> public key</span>, then combine it with the other person&apos;s
+              public key to arrive at the <span className="text-emerald-300">same shared secret</span> — independently.
+              From that point, messages can be encrypted and decrypted by either party.
+            </p>
+            <p className="text-[10px] text-zinc-500 mt-1">
+              Step 1 → generate keys &nbsp;·&nbsp; Step 2 → share your public key &nbsp;·&nbsp; Step 3 → paste their public key &amp; handshake &nbsp;·&nbsp; Step 4 → encrypt / decrypt
+            </p>
+          </div>
           <SerpentTab />
         </TabsContent>
 
         {/* ── Reality ── */}
         <TabsContent value="reality" className="mt-4 space-y-3">
+          <div className="rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
+            <p className="text-xs font-semibold text-zinc-200 mb-1">60-point geometry in 3D space</p>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              The 60 MOSS60 nodes aren&apos;t just numbers — they can be mapped onto any surface.
+              Switch between projections to see the same underlying prime-indexed structure take different shapes:
+              a flat spiral, a sphere, a torus (donut), or a hyperbolic disk.
+              All four are the same 60 points — just viewed through different geometric lenses.
+            </p>
+          </div>
           <div className="flex items-center gap-3 flex-wrap">
             <select
               value={projection}
@@ -813,12 +888,31 @@ export function Moss60Hub() {
         </TabsContent>
 
         {/* ── Network ── */}
-        <TabsContent value="network" className="mt-4">
+        <TabsContent value="network" className="mt-4 space-y-3">
+          <div className="rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
+            <p className="text-xs font-semibold text-zinc-200 mb-1">The crystalline node graph</p>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              This shows MOSS60 as a network of 60 nodes — like a map of how information flows.
+              Nodes at <span className="text-cyan-300">prime-indexed positions</span> (2, 3, 5, 7, 11…) act as
+              &ldquo;bridges&rdquo; with extra long-range connections, making the network small-world: any node can
+              reach any other in just a few hops. This structure is why MOSS60 mixing is so thorough —
+              a single input change ripples everywhere quickly.
+            </p>
+          </div>
           <CrystallineNetwork dna={DNA_R.join('')} />
         </TabsContent>
 
         {/* ── Security Learning ── */}
-        <TabsContent value="security" className="mt-4">
+        <TabsContent value="security" className="mt-4 space-y-3">
+          <div className="rounded-lg border border-slate-700/50 bg-slate-900/30 p-3">
+            <p className="text-xs font-semibold text-zinc-200 mb-1">How the protection layers stack</p>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              MOSS60&apos;s security comes from layering <em>many independent mixing strategies</em> rather than
+              relying on a single algorithm. Even if one layer were cracked, the others would still hold.
+              Tap each layer below to see a plain-English explanation of what it does — and use the live
+              hash demo to see the &ldquo;avalanche effect&rdquo; in action: one tiny change scrambles everything.
+            </p>
+          </div>
           <SecurityLearningPanel />
         </TabsContent>
       </Tabs>
