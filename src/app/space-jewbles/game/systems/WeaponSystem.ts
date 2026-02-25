@@ -8,6 +8,7 @@ export interface WeaponConfig {
   cooldown: number;
   special: string;
   color: number;
+  bg?: unknown;
 }
 
 export const WEAPONS: WeaponConfig[] = [
