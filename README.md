@@ -2,6 +2,8 @@
 
 **Working Demo:** Identity Core + Genome System + Live Vitals (v5)
 
+**Canonical repository:** https://github.com/Blackcockatoo/1BSS-META-PET-A.git
+
 ---
 
 ## What's Running Now
