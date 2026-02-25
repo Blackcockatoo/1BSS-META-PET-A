@@ -242,8 +242,9 @@ export function getResponse(
       duration = 3500;
       audioTrigger = 'success';
       break;
-    case 'play':
-      responses = responseLibrary.playing[isVeryTired ? 'tired' : moodLevel] || responseLibrary.playing.neutral;
+    case 'play': {
+      const playMood = moodLevel === 'unhappy' ? 'neutral' : moodLevel;
+      responses = responseLibrary.playing[isVeryTired ? 'tired' : playMood] || responseLibrary.playing.neutral;
       responseType = 'interaction';
       duration = 4000;
       audioTrigger = 'success';
@@ -260,12 +261,15 @@ export function getResponse(
         };
       }
       break;
-    case 'clean':
-      responses = responseLibrary.cleaning[moodLevel] || responseLibrary.cleaning.neutral;
+    }
+    case 'clean': {
+      const cleanMood = moodLevel === 'unhappy' ? 'neutral' : moodLevel;
+      responses = responseLibrary.cleaning[cleanMood] || responseLibrary.cleaning.neutral;
       responseType = 'action';
       duration = 3000;
       audioTrigger = 'success';
       break;
+    }
     case 'sleep':
       responses = responseLibrary.sleeping.happy;
       responseType = 'action';

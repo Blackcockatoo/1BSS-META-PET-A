@@ -1,10 +1,12 @@
 import { AnchorHTMLAttributes, MouseEvent, ReactNode, useEffect, useMemo, useState } from "react";
 
 function getCurrentPath() {
+  if (typeof window === "undefined") return "/";
   return window.location.pathname || "/";
 }
 
 function navigate(to: string) {
+  if (typeof window === "undefined") return;
   if (to !== getCurrentPath()) {
     window.history.pushState({}, "", to);
     window.dispatchEvent(new PopStateEvent("popstate"));
