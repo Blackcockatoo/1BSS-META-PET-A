@@ -1,4 +1,4 @@
-import { Route, Switch } from "wouter";
+import { Route, Switch } from "./lib/router";
 import IndexPage from "./pages/IndexPage";
 import ParentsPage from "./pages/ParentsPage";
 import SchoolsPage from "./pages/SchoolsPage";

@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link } from "../lib/router";
 import CampaignLayout from "../components/CampaignLayout";
 import StatBlock from "../components/StatBlock";
 
