@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation } from "../lib/router";
 import { TEACHER_HUB_URL, METAPET_APP_URL } from "../tokens";
 
 const NAV_LINKS = [
