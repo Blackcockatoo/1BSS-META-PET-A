@@ -1,14 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { decodeGenome } from './decoder';
-import type { Genome } from './types';
+import { createTestGenome } from './testUtils';
 
 describe('Genome Decoder', () => {
-  const createTestGenome = (seed: number): Genome => ({
-    red60: Array(60).fill(0).map((_, i) => (seed + i) % 7),
-    blue60: Array(60).fill(0).map((_, i) => (seed + i + 1) % 7),
-    black60: Array(60).fill(0).map((_, i) => (seed + i + 2) % 7),
-  });
-
   describe('decodeGenome', () => {
     it('should return traits with all required sections', () => {
       const genome = createTestGenome(0);
