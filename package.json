@@ -3,17 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
-    "dev": "next dev -H 0.0.0.0",
-    "build": "npm run prepare:moss60-production && next build",
+    "dev": "next dev -H 0.0.0.0 --turbopack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "tsc --noEmit && eslint src",
     "format": "npx biome format --write",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage",
-    "check:moss60-copy": "node scripts/check-moss60-copy.mjs",
-    "prepare:moss60-production": "node scripts/prepare-moss60-production.mjs"
+    "test:coverage": "vitest --coverage"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
@@ -43,18 +40,18 @@
     "@types/google.maps": "^3.58.1",
     "@types/node": "^20.17.50",
     "@types/qrcode": "^1.5.6",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react": "^18.3.22",
+    "@types/react-dom": "^18.3.7",
     "@types/three": "^0.182.0",
     "@vitejs/plugin-react": "^5.1.0",
-    "@vitest/coverage-v8": "^4.0.16",
-    "@vitest/ui": "^4.0.16",
+    "@vitest/coverage-v8": "^4.0.8",
+    "@vitest/ui": "^4.0.8",
     "eslint": "^9.27.0",
-    "eslint-config-next": "^16.1.1",
+    "eslint-config-next": "15.1.7",
     "happy-dom": "^20.0.10",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.3",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.8"
   }
 }

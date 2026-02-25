@@ -50,7 +50,11 @@
       "Bash(git push:*)",
       "Bash(node:*)",
       "Bash(npm run test:coverage:*)",
-      "Bash(npx next lint:*)"
+      "Bash(npx next lint:*)",
+      "Bash(cd C:\\\\Users\\\\Tom\\\\OneDrive\\\\Desktop\\\\meta-pet - Copy\\\\1BSS-META-PET-A:*)",
+      "Bash(head:*)",
+      "Bash(vercel:*)",
+      "Bash(npx vercel:*)"
     ],
     "deny": [],
     "ask": []
